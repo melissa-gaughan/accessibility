@@ -72,17 +72,18 @@ tabItems(
                        "Metric",
                        choices = metric_choices, 
                        multiple = FALSE, 
-                       selected = "New Coverage Trips"),
+                       selected = "Count Proposed"),
            selectInput("asset",
                        "Asset Type",
-                       choices = NULL, 
-                       multiple = FALSE),
+                       choices = asset_group_choices, 
+                       multiple = FALSE, 
+                       selected = "shopping_center"),
            
            selectInput("geography", "Geography",
                        choices = c("Block Groups" = "block_group",
-                                   "1/4 Mile Hex" = "quarter_mile_hex"
+                                   "1/4 Mile Hex" = "quarter_mile_hexagon"
                        ),
-                       selected = "quarter_mile_hex"),
+                       selected = "quarter_mile_hexagon"),
            
           # checkboxInput("legend", "Show legend", TRUE),
            actionButton("recalc", "Load Map & Filters")
@@ -94,17 +95,19 @@ tabItems(
                     "Day",
                     choices = day_type_choices, 
                     multiple = FALSE, 
-                    selected = "week"
+                    selected = "weekday"
                      ),
         selectInput("start_time",
                     "Trip Start Time",
-                    choices = NULL, 
-                    multiple = FALSE
+                    choices = start_time_choices, 
+                    multiple = FALSE, 
+                    selected = "12 PM"
                     ),
         selectInput("trip_length",
                     "Max Trip Length",
-                    choices = NULL, 
-                    multiple = FALSE), 
+                    choices = trip_length_choices, 
+                    multiple = FALSE, 
+                    selected = 45), 
         sliderInput("metric_range",
                     label = "Filter Data Range",
                     min = -100,
@@ -122,7 +125,9 @@ tabItems(
          box(height = "100%",
              id = "map_container",
            width = NULL, solidHeader = TRUE,
-           jqui_resizable( leaflet::leafletOutput("metric_map")#, 
+           jqui_resizable( 
+             
+             leaflet::leafletOutput("metric_map")#, 
                           
                            )),
     
@@ -133,8 +138,8 @@ tabItems(
           
         )
 ),
-tabPanel( "Notes",
-          h6("test")
+tabItem( "Notes",
+          textOutput("note")
 
      ))
 
@@ -160,76 +165,16 @@ server <- function(input, output) {
    #MAP FUNCTIONS #####
       #handle route reactivity####
   
-  #network selections
- network<- reactive({
-    if (input$network == "Baseline"){
-      network <-  files$baseline_network 
-    } else if(input$network == "Final Proposal"){
-      network <- files$proposed_network
-    } else{
-      network <- files$baseline_network
-    }
-
-  })
-
  
-  # update routes to correspond to network selected
-  observeEvent(network(), {
-    #req(input$network)
-    #freezeReactiveValue(input, "routes")
-    choices <- unique(network()$route_short_name)
-    updateSelectInput( inputId = "routes", choices = choices)
-  })
-  
   
 
   
   
-  #handle period/day combos ####
   
-  period_reactive<- reactive({
-    if (input$day_type == "week"){
-       "week" 
-    } else if(input$day_type == "weekday"){
-      c("weekday", "AM", "MID", "PM", "XEV")
-      c("weekday" , "AM", "MID", "PM", "XEV")
-    } else if(input$day_type == "saturday"){
-      c("saturday", "AM", "MID", "PM", "XEV")
-    }  else if(input$day_type == "sunday"){
-        c("sunday", "AM", "MID", "PM", "XEV")
-    } else{
-        ""
-    }
-    
-  })
-  
-  observeEvent(period_reactive(), {
-    #req(input$network)
-    #freezeReactiveValue(input, "routes")
-    choices <- unique( period_reactive())
-    updateSelectInput( inputId = "period", choices = choices)
-  })
-  
-  
-conditional <- function(condition, success){
-    if(condition) success else TRUE
-  }  
-  #handle route selections. Add in reset button?
-routes <- eventReactive(input$recalc,{
-
-#files$baseline_network
-
-  if (input$network == "Baseline"){
-route <- files$baseline_network  %>%
-     filter( conditional(isTruthy(input$routes), route_short_name %in% input$routes )) %>%
-      sf::st_as_sf()
-  } else if(input$network == "Final Proposal"){
-   route <- files$proposed_network %>%
-      filter( conditional(isTruthy(input$routes),route_short_name %in% input$routes ))%>%
-      sf::st_as_sf()
-  }
-
-  })
+# conditional <- function(condition, success){
+#     if(condition) success else TRUE
+#   }  
+ 
 
 epa_hatch_reactive <- reactive({
   epa <- files$epa_hatch %>% 
@@ -238,97 +183,43 @@ epa_hatch_reactive <- reactive({
 
 #
 # update range of filter for user controls
-observe( {
- 
-  if(input$metric %in% c("Percent Change in Capacity" ,"Percent Change in Trips" )){
-   data <- files$network_data %>% 
-      filter(Metric == input$metric &
-               `Analysis Period` == input$period &
-               `Day Type` == input$day_type &
-               Geography  == input$geography) %>% 
-      drop_na() %>% 
-      mutate(Value = Value*100)
-   min_range <- min(data$Value, na.rm = T)
-   max_range <- max(data$Value, na.rm = T)
-   updateSliderInput( inputId = "metric_range",
-                      min =min_range, 
-                      max = max_range, 
-                      value = c(min_range, max_range))
-  
-  } else if ( input$metric %in% c("New Coverage Trips" ,"Lost Coverage Trips" )){
-    
-    data <- files$network_data %>% 
-      filter(Metric == input$metric &
-               `Analysis Period` == input$period &
-               `Day Type` == input$day_type &
-               Geography  == input$geography) %>% 
-     drop_na(Value) %>% 
-      filter(!is.nan(Value)) %>% 
-      filter(!is.infinite(Value))
-    
-    min_range <- min(data$Value)
-    max_range <- max(data$Value)
-    
-    
-    updateSliderInput( inputId = "metric_range",
-                       min =min_range, 
-                       max = max_range, 
-                       value = c(min_range, max_range))
-   
-   } else {
-  data <-   files$network_data %>% 
-      filter(Metric == input$metric &
-               `Analysis Period` == input$period &
-               `Day Type` == input$day_type &
-               Geography  == input$geography) %>% 
-      drop_na() 
-  
-  min_range <- min(data$Value, na.rm = T)
-  max_range <- max(data$Value, na.rm = T)
-  updateSliderInput( inputId = "metric_range",
-                     min =min_range, 
-                     max = max_range, 
-                     value = c(min_range, max_range))
-  }
-
-})
 
       #filter data for user input on metrics#####
   metric_data <- eventReactive(input$recalc, {
     req(input$recalc)
-    if(input$metric %in% c("Percent Change in Capacity" ,"Percent Change in Trips" )){
-      filtered_hex_data <-  files$network_data %>% 
-      filter(Metric == input$metric &
-               `Analysis Period` == input$period &
-               `Day Type` == input$day_type &
-               Geography == input$geography ) %>% 
-        drop_na(Value) %>% 
-        filter(!is.nan(Value)) %>% 
-        filter(!is.infinite(Value)) %>% 
-        mutate(Value = Value*100) %>% 
-        filter( Value >= input$metric_range[1] &
-                  Value <= input$metric_range[2] )
+    if(input$metric %in% unique(files$network_data_details$Metric)){
+      filtered_hex_data <- files$network_data_details %>% 
+        filter(Metric ==   input$metric &
+                 Assettype == input$asset &
+                 `Start Time` == input$start_time &
+                 `Day Type` == input$day_type &
+                 Geography  == input$geography &
+             `Max Trip Duration` == input$trip_length ) %>%
+        drop_na(Value) %>%
+        filter(!is.nan(Value)) %>%
+        filter(!is.infinite(Value)) #%>%
+        # filter( Value >= input$metric_range[1] &
+        #           Value <= input$metric_range[2] )
+      
+      #print(nrow(filtered_hex_data))
      
      minVal <- min(filtered_hex_data$Value)
      maxVal <- max(filtered_hex_data$Value)
      domain <- c(minVal,maxVal)
      values_df <-  filtered_hex_data$Value
-     
      center <- as.numeric(0)
      interval <- ifelse((maxVal - minVal)>10,10,
                         ifelse((maxVal - minVal)>5,1,0.2))
-     
-     
      color_bucket <- calculateBucket(min_val = minVal,max_val = maxVal,values_df = values_df,
-                                     max_bin=7,interval=10,interval_options=seq(10,5000,10),
-                                     center=100,floor_at=NULL,ceil_at=NULL)
+                                     max_bin=10,interval=1,#interval_options=seq(from = -100, to = 100, by = 20),
+                                     center=0,floor_at=NULL,ceil_at=NULL)
+     print(color_bucket)
      df_pal <- inferColor(color_bucket,
                           color_below = "#b2182b",
                           color_above = "#2166ac",
                           interval=interval,
                           center=center)
-     
-     
+     print(df_pal)
      filtered_hex_data <- filtered_hex_data %>%
        mutate(metric_color_label = cut(Value, breaks = color_bucket$breaks,
                                        labels = color_bucket$breaks_label,
@@ -339,12 +230,13 @@ observe( {
     } else {
       filtered_hex_data <- files$network_data %>% 
         filter(Metric == input$metric &
-               `Analysis Period` == input$period &
-               `Day Type` == input$day_type &
-                 Geography == input$geography ) %>% 
-        drop_na(Value) %>% 
-        filter(!is.nan(Value)) %>% 
-        filter(!is.infinite(Value)) %>% 
+                 `Start Time` == input$start_time &
+                 `Day Type` == input$day_type &
+                 Geography  == input$geography &
+                 `Max Trip Duration` == input$trip_length) %>% 
+        drop_na(Value) %>%
+        filter(!is.nan(Value)) %>%
+        filter(!is.infinite(Value)) %>%
         filter( Value >= input$metric_range[1] &
                   Value <= input$metric_range[2])
       
@@ -386,20 +278,14 @@ observe( {
      drop_na(Value) %>%
     filter(Value != 0) %>%
       sf::st_as_sf() #added because R was making this a table not a spatial object
-    } else if (input$geography == "quarter_mile_hex" ){
+    } else {
       quarter_mile <- files$quarter_mile_hex_grid %>% 
         left_join(metric_data(), by = "Geoid") %>% 
       drop_na(Value) %>%
        filter(Value != 0) %>%
         sf::st_as_sf()
       
-    } else if (input$geography == "eigth_mile_hex" ){
-      eigth_mile <- files$eigth_mile_hex_grid %>% 
-        left_join(metric_data(), by = "Geoid") %>% 
-       drop_na(Value) %>%
-       filter(Value != 0) %>%
-        sf::st_as_sf()
-    }
+    } 
   },  ignoreNULL = FALSE)
   
 # responsive labels for multiple geos
@@ -412,19 +298,13 @@ observe( {
       drop_na(Value) %>%
       filter(Value != 0) %>%
       sf::st_as_sf() #added because R was making this a table not a spatial object
-      } else if (input$geography == "quarter_mile_hex" ){
+      } else {
         files$quarter_mile_hex_grid %>% 
           left_join(metric_data()) %>%
           drop_na(Value) %>%
           filter(Value != 0) %>%
           sf::st_as_sf()
-      } else if (input$geography == "eigth_mile_hex" ){
-        files$eigth_mile_hex_grid %>% 
-          left_join(metric_data()) %>%
-          drop_na(Value) %>%
-          filter(Value != 0) %>%
-          sf::st_as_sf()
-      }
+      } 
   },  ignoreNULL = FALSE)
   
   #recalc legend to respond to new breaks
@@ -450,16 +330,13 @@ observeEvent(input$metric_map_shape_click, {
 
 metric_data_detail <- eventReactive(input$metric_map_shape_click, {
   files$network_data_details %>% 
-    filter(Geoid== input$metric_map_shape_click$id &
-             `Analysis Period` == input$period &
+    filter(Metric == input$metric &
+             Assettype == input$asset&
+             `Start Time` == input$period &
              `Day Type` == input$day_type &
-             Geography == input$geography) %>% 
-    select(Route, 
-           `Trips per Rte Baseline`, 
-           `Trips per Rte Proposed`, 
-           `Change in Trips`, 
-           `Percent Change in Trips`) %>% 
-    arrange(`Change in Trips`)
+             Geography  == input$geography &
+             `Max Trip Duration` == input$trip_length ) 
+   # arrange(`Change in Trips`)
   
   
 })
@@ -518,9 +395,8 @@ output$click_info <- renderTable(metric_data_detail())
                            textsize = "15px",
                            direction = "auto"),
                  fillColor = ~metric_data_sf()$metric_color_group,
-                 popup = ~paste0(input$metric, ": ", Value,
-                                 "<br>Routes in Baseline Network: ", `Routes in Geo Baseline`,
-                                 "<br>Routes in Proposed Network: ", `Routes in Geo Proposed`
+                 popup = ~paste0(input$metric, ": ", Value
+                                 
                                  )
       ) %>%
       addPolylines(
@@ -528,15 +404,7 @@ output$click_info <- renderTable(metric_data_detail())
         color = "black",
         weight = 0.6,
         group = "EPA Overlay"
-      ) %>%
-      addPolylines(
-        data = routes(),
-        color = "black",
-        weight = 3 ,
-        group = "Routes",
-        label = ~route_short_name,
-        popup = ~paste0("<br>Route: ", route_short_name,
-                        "<br>Description: ", description  ) ) %>%
+      )  %>%
      leafem::addStaticLabels(
     # addLabelOnlyMarkers(
                    data = metric_data_labels(),
@@ -556,22 +424,7 @@ output$click_info <- renderTable(metric_data_detail())
 
 
   
-  #recreate legend if needed ####
-  observeEvent(input$recalc,{
-    proxy <- leafletProxy("metric_map", data = metric_data_sf())
-
-    # Remove any existing legend, and only if the legend is
-    # enabled, create a new one.
-    proxy %>% clearControls()
-    if (input$legend ) {
-      #pal <- colorpal()
-      proxy %>% addLegend(position = "topright",
-                          colors = reactive_legend()$metric_color_group,
-                          labels = reactive_legend()$metric_color_label,
-                          opacity =  0.9,
-                          title = input$metric)
-    }
-  }, ignoreNULL = FALSE)
+  
    
    
 
@@ -608,20 +461,6 @@ Please contact Melissa Gaughan with questions. Last updated 2023.11.30.")
     
    
   
-  output$network_1 <- eventReactive(input$table_contents, {
-    if (input$table_contents == "Headways" ){
-      # read file
-  
-      
-      #file_name <- paste0( input$network_1, "_gtfs.zip")
-      file_name <- paste0(213, "_gtfs.zip")
-      
-      gtfs_1 <- tidytransit::read_gtfs(here::here("input","gtfs", file_name))
-      
-      
-      #calculate headways
-    }
-  })
   
   output$note2 <- renderText("note2")
   

@@ -16,19 +16,21 @@ calculateBucket <- function(min_val,max_val, values_df,  max_bin=10,interval=10,
   #this function is only getting passed the min and max vals. It doesn't know the distribution and can't account for outliers. 
   #pass in the full vector of values? 
   
-  if (min_val_round == min_val){
-    min_val_round <- min_val_round - interval # reduce by one group as the cut function takes (x1,x2]
-  }
+  # if (min_val_round == min_val){
+  #   min_val_round <- min_val_round - interval # reduce by one group as the cut function takes (x1,x2]
+  # }
   
-  if ((min_val_round == 0) & (max_val_round == 0)){
+  if ((min_val_round == 0) & (max_val_round == 0)){ #handle cases where all values are zero
+    print("all zero")
     delta <- max_val_round - min_val_round
     num_bin <- c(1)
     res_idex <- 1
     interval_plot <- 0
-    breaks <- c(-interval,0,0,interval)
+    breaks <- c(-interval,0,interval)
     
   }else if (min_val * max_val >= 0){ #changed this to not reference rounded values as it was causing issues with situations where 1 was getting rounded down to 0
     ## when both are negative/positive/invovles 0
+    print("oneside")
     delta <- max_val_round - min_val_round
 
     num_bin <- ceiling(delta / interval_options)
@@ -41,9 +43,15 @@ calculateBucket <- function(min_val,max_val, values_df,  max_bin=10,interval=10,
     
     pos_bins_vec <- as.vector(pos_bins$brks)
     
-    breaks <- c( 0, pos_bins_vec)
+   if( 0 %in% (as.vector(pos_bins$brks))){
+     breaks <- as.vector(pos_bins$brks)
+   } else {
+    
+     breaks <- c( 0, as.vector(pos_bins$brks))
+   }
    
   }else{
+    print("full range")
     ## when one is positive and one is negative
     ## need to make sure 0 is always in the breaks
     
