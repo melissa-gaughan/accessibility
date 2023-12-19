@@ -28,7 +28,8 @@ source("utils.R")
  #test color scheme for new metrics
   # add documentation of metrics on separate page 
       # need to add tabs to side bar
- 
+
+# look at folder, read in folder names, remove.zip from name 
 files_list <- list.files(here::here("input", "r-objects"), full.names = T)
 files_short_names <- list.files(here::here("input", "r-objects"), full.names = F)
 file_names <-  gsub(pattern = "\\.RDS$", replacement = "", x = basename(files_short_names))
@@ -44,68 +45,77 @@ metro <- "https://upload.wikimedia.org/wikipedia/en/thumb/b/bf/King_County_Metro
 
 
 day_type_choices <- unique(files$network_data$`Day Type`)
-period_choices <- unique(files$network_data$`Analysis Period`)
-metric_choices <- sort( unique(files$network_data$Metric))
-
-
+start_time_choices <- unique(files$network_data$`Start Time`)
+metric_choices <- sort( c(unique(files$network_data$Metric), unique(files$network_data_details$Metric))) #trying to add in the asset level choices
+trip_length_choices <-  unique(files$network_data$`Max Trip Duration`)
+asset_group_choices <- unique(files$network_data_details$Assettype)
                                          
-                                         # look at folder, read in folder names, remove.zip from name
+                                       
 
 #UI #####
 
 
 body <- dashboardBody(
-
+tabItems(
+  tabItem(
+    tabName = "Map", #need to wrap body in tabItems to ID which tab the values show on
   fluidRow(
-  column(width = 6,
+
          jqui_resizable(
          box(title = "Metric Filters", 
-             width = NULL, 
+             width = 12, 
              solidHeader = TRUE,
-             background = "navy",
+             status = "warning", 
              collapsible = T,
+             column(width = 6,
            selectInput("metric",
                        "Metric",
                        choices = metric_choices, 
                        multiple = FALSE, 
                        selected = "New Coverage Trips"),
-           
-           selectInput("day_type",
-                       "Day",
-                       choices = day_type_choices, 
-                       multiple = FALSE, 
-                       selected = "week"
-           ),
-           selectInput("period",
-                       "Period",
+           selectInput("asset",
+                       "Asset Type",
                        choices = NULL, 
-                       multiple = FALSE)
-         )
-         )
+                       multiple = FALSE),
+           
+           selectInput("geography", "Geography",
+                       choices = c("Block Groups" = "block_group",
+                                   "1/4 Mile Hex" = "quarter_mile_hex"
+                       ),
+                       selected = "quarter_mile_hex"),
+           
+          # checkboxInput("legend", "Show legend", TRUE),
+           actionButton("recalc", "Load Map & Filters")
+           
+         
          ),
- 
   column(width = 6,
-         jqui_resizable(
-   box( title = "Route Filters",
-        width = NULL,
-        solidHeader = TRUE, 
-        background = "navy",
-        collapsible = T,
-        selectInput("network",
-                "Network",
-                choices = c("Baseline", "Final Proposal"), 
-                multiple = FALSE, 
-                selected = "Baseline"), 
-    
-    selectInput("routes",
-                "Routes",
-                choices = NULL, 
-                multiple = TRUE)
+        selectInput("day_type",
+                    "Day",
+                    choices = day_type_choices, 
+                    multiple = FALSE, 
+                    selected = "week"
+                     ),
+        selectInput("start_time",
+                    "Trip Start Time",
+                    choices = NULL, 
+                    multiple = FALSE
+                    ),
+        selectInput("trip_length",
+                    "Max Trip Length",
+                    choices = NULL, 
+                    multiple = FALSE), 
+        sliderInput("metric_range",
+                    label = "Filter Data Range",
+                    min = -100,
+                    max = 100,
+                    value = c(-100, 100))
+   )
    )
    ) 
    
    ),
-  
+
   #  fluidRow(
   column(width = 12,  
      
@@ -121,39 +131,23 @@ body <- dashboardBody(
           
              )))
           
-        #)
-)
+        )
+),
+tabPanel( "Notes",
+          h6("test")
 
-
-     )
+     ))
 
 
 
 ui <- dashboardPage(
   dashboardHeader(title = " EastLink Trip Change"),
- dashboardSidebar(
-  
+sidebar =  dashboardSidebar(
+  sidebarMenu( menuItem(
+    "Map", tabName = "Map" ), 
+  menuItem( "Notes", tabName = "notes")
      
-   box( title = "Execute Map", width = NULL,
-                       background= 'navy',
-                       solidHeader = FALSE,     collapsible = T,
-                       sliderInput("metric_range",
-                                   label = "Filter Data Range",
-                                   min = -100,
-                                   max = 100,
-                                   value = c(-100, 100)),
-
-                       selectInput("geography", "Geography",
-                                   choices = c("Block Groups" = "block_group",
-                                               "1/4 Mile Hex" = "quarter_mile_hex",
-                                               "1/8 Mile Hex" = "eigth_mile_hex"),
-                                   selected = "quarter_mile_hex"),
-
-                       checkboxInput("legend", "Show legend", TRUE),
-                       actionButton("recalc", "Load Map & Filters"), 
-        h6( "This app shows the difference in vehicle trips and vehicle capacity for the EastLink Restructure 2022 Final Proposal.
-This tool is for planning purposes only and does not show final data.
-Please contact Melissa Gaughan with questions. Last updated 2023.11.30."))),
+   )),
   body
 )
 # SERVER#####

@@ -70,22 +70,30 @@ quarter_mile_hex_grid <- sf::read_sf(here::here("input", "hex_grids", "quarter_m
 # block group metrics #####
 network_data <-  read_csv(here::here( "input",paste0("summary_comparison_233_LLink_4.csv"))) %>% 
 rename(geoid = GEO_ID_GRP) %>% 
-  select(-c(percentile, cutoff, run_id, cutoffs)) %>% 
+  select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed
+            )) %>% 
   pivot_longer(cols = !c(geoid:geography), 
                names_to = "Metric", 
-               values_to = "Value")
+               values_to = "Value") %>% 
+  janitor::clean_names("title") %>% 
+  mutate(Metric  = stringr::str_replace_all(Metric, "_", " ")) %>% 
+  mutate(Metric = stringr::str_to_title(Metric))
+
 
 
 network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_233_LLink_4.csv"))) %>% 
-  select(-c(geometry_baseline, id_baseline, geometry_proposed, id_proposed, percentile, cutoff, run_id, cutoffs)) %>% 
+  select(-c( percentile, cutoff, run_id, cutoffs,departure_datetime_baseline, departure_datetime_proposed, )) %>% 
   rename(geoid = GEO_ID_GRP) %>% 
-  pivot_longer(cols = !c(geoid, departure_datetime, max_trip_duration, geography, assettype), 
+  pivot_longer(cols = !c(geoid, day_type, start_time,  max_trip_duration, geography, assettype), 
                names_to = "Metric", 
-               values_to = "Value")
+               values_to = "Value")%>% 
+  janitor::clean_names("title") %>% 
+  mutate(Metric  = stringr::str_replace_all(Metric, "_", " ")) %>% 
+  mutate(Metric = stringr::str_to_title(Metric))
+
 
 #the data tables need to be separate because assettype is a separate field that cannot be easily appended to the summary data.
- 
-  mutate(across(.cols = -c(Geoid ,`Percent Change in Trips`), .fns = as.character))
+
 
 block_group_need_scores<- block_group_need_scores %>% 
   mutate(Geoid = as.numeric(Geoid))
@@ -101,6 +109,7 @@ epa_hatch <- block_groups %>%
 
 #export data objects #####
 rm(project_name)
+rm(test)
 
 library(purrr)
 library(here)
