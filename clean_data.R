@@ -28,7 +28,8 @@ rm(centroids)
 
 block_groups <- block_groups_raw %>% 
   st_transform(4326) %>% 
-  rmapshaper::ms_simplify(keep = .05)
+  rmapshaper::ms_simplify(keep = .05) %>% 
+  select(Geoid, geometry)
 
 rm(block_groups_raw)
 
@@ -131,7 +132,8 @@ lookup_table_asset_group <- tibble(assettype= unique(community_asset_groups$asse
 
 
 block_group_need_scores<- block_group_need_scores %>% 
-  mutate(Geoid = as.numeric(Geoid))
+  mutate(Geoid = as.numeric(Geoid)) %>% 
+  select(Geoid, final_score)
 
 epa_hatch <- block_groups %>%
   left_join(block_group_need_scores) %>% 
