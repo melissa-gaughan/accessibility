@@ -92,6 +92,41 @@ network_data_details <- read_csv(here::here( "input", paste0("asset_group_compar
   mutate(Metric = stringr::str_to_title(Metric))
 
 
+
+parameters_raw <- read_csv("analyses/accessibility/data/input_parameters_weekday_233.csv") %>% 
+  mutate(departure_datetime = as.POSIXct(departure_datetime))
+
+parameters <- parameters_raw %>% 
+  select(-c(day_type))
+
+
+#create lookup tables
+
+lookup_table_day_type <- tibble(day_type = unique(parameters_raw$day_type)) %>% 
+  arrange() %>%
+  rowid_to_column() %>% 
+  rename(lookup_day_type = rowid)
+
+lookup_table_start_time <- tibble(start_time = unique(parameters_raw$start_time)) %>% 
+  arrange() %>% 
+  rowid_to_column() %>% 
+  rename(lookup_start_time = rowid)
+
+lookup_table_trip_length <- tibble(trip_length = unique(parameters_raw$max_trip_duration)) %>% 
+  arrange() %>%
+  rowid_to_column() %>% 
+  rename(lookup_trip_length = rowid)
+
+lookup_table_geography <- tibble(geography= unique(parameters_raw$geography)) %>% 
+  arrange() %>%
+  rowid_to_column() %>% 
+  rename(lookup_geography = rowid)
+
+lookup_table_asset_group <- tibble(assettype= unique(community_asset_groups$asset_group)) %>% 
+  arrange() %>%
+  rowid_to_column() %>% 
+  rename(lookup_asset_group = rowid)
+
 #the data tables need to be separate because assettype is a separate field that cannot be easily appended to the summary data.
 
 
