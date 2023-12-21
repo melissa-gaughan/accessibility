@@ -137,11 +137,11 @@ tabItems(
              )))
           
         )
-),
+,
 tabItem( "Notes",
           textOutput("note")
 
-     ))
+     )))
 
 
 
@@ -150,7 +150,7 @@ ui <- dashboardPage(
 sidebar =  dashboardSidebar(
   sidebarMenu( menuItem(
     "Map", tabName = "Map" ), 
-  menuItem( "Notes", tabName = "notes")
+  menuItem( "Notes", tabName = "Notes")
      
    )),
   body
@@ -332,7 +332,7 @@ metric_data_detail <- eventReactive(input$metric_map_shape_click, {
   files$network_data_details %>% 
     filter(Metric == input$metric &
              Assettype == input$asset&
-             `Start Time` == input$period &
+             `Start Time` == input$start_time &
              `Day Type` == input$day_type &
              Geography  == input$geography &
              `Max Trip Duration` == input$trip_length ) 
