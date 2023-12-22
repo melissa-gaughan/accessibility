@@ -139,8 +139,8 @@ tabItems(
              id = "map_container",
            width = NULL, solidHeader = TRUE,
            jqui_resizable( 
-             
-             leaflet::leafletOutput("metric_map")#, 
+            # tableOutput("test_table" ) 
+            leaflet::leafletOutput("metric_map")#, 
                           
                            )),
     
@@ -179,11 +179,6 @@ server <- function(input, output) {
       #handle route reactivity####
   
  
-  
-
-  
-  
-  
 # conditional <- function(condition, success){
 #     if(condition) success else TRUE
 #   }  
@@ -224,7 +219,7 @@ epa_hatch_reactive <- reactive({
      interval <- ifelse((maxVal - minVal)>10,10,
                         ifelse((maxVal - minVal)>5,1,0.2))
      color_bucket <- calculateBucket(min_val = minVal,max_val = maxVal,values_df = values_df,
-                                     max_bin=10,interval=1,#interval_options=seq(from = -100, to = 100, by = 20),
+                                     max_bin=10,interval=interval,#interval_options=seq(from = -100, to = 100, by = 20),
                                      center=0,floor_at=NULL,ceil_at=NULL)
      print(color_bucket)
      df_pal <- inferColor(color_bucket,
@@ -234,7 +229,7 @@ epa_hatch_reactive <- reactive({
                           center=center)
      print(df_pal)
      filtered_hex_data <- filtered_hex_data %>%
-       mutate(metric_color_label = cut(Value, breaks = color_bucket$breaks,
+       mutate(metric_color_label = cut(Value, breaks =unique( color_bucket$breaks),
                                        labels = color_bucket$breaks_label,
                                        include.lowest = TRUE)) %>%
        mutate(metric_color_label = as.factor(metric_color_label)) %>%
@@ -264,8 +259,8 @@ epa_hatch_reactive <- reactive({
                          ifelse((maxVal - minVal)>5,1,0.2))
       
       color_bucket <- calculateBucket(min_val = minVal,max_val = maxVal,values_df = values_df,
-                                      max_bin=7,interval=10,interval_options=seq(10,5000,10),
-                                      center=100,floor_at=NULL,ceil_at=NULL)
+                                      max_bin=10,#interval=10,interval_options=seq(10,5000,10),
+                                      center=0,floor_at=NULL,ceil_at=NULL)
       df_pal <- inferColor(color_bucket,
                            color_below = "#b2182b",
                            color_above = "#2166ac",
@@ -274,9 +269,10 @@ epa_hatch_reactive <- reactive({
       
       
       filtered_hex_data <- filtered_hex_data %>%
-        mutate(metric_color_label = cut(Value, breaks = color_bucket$breaks,
+        mutate(metric_color_label = cut(Value, breaks = unique(color_bucket$breaks),
                                         labels = color_bucket$breaks_label,
                                         include.lowest = TRUE)) %>%
+        
         mutate(metric_color_label = as.factor(metric_color_label)) %>%
         dplyr::left_join(df_pal) %>%
         arrange(metric_color_label)
@@ -357,7 +353,7 @@ metric_data_detail <- eventReactive(input$metric_map_shape_click, {
 
 output$click_info <- renderTable(metric_data_detail())
 
-
+output$test_table <- renderTable(metric_data())
   # Map reactives ####
   output$metric_map <- renderLeaflet({
     # Use leaflet() here, and only include aspects of the map that
@@ -376,14 +372,20 @@ output$click_info <- renderTable(metric_data_detail())
                        width = 80) %>% 
       leaflet::addScaleBar(position = "topright")   %>% 
       addLayersControl(
-        overlayGroups = c( "EPA Overlay", "Labels", "Routes"),
+        overlayGroups = c( "EPA Overlay", "Labels"),
         options = layersControlOptions(collapsed = FALSE), 
         position = "topleft"
       ) %>% 
-      hideGroup(c("EPA Overlay", "Routes", "Labels") )
+      hideGroup(c("EPA Overlay",  "Labels") )
   })
   
-  
+ metric_label <- eventReactive(input$recalc, {
+  test <-  files$lookup_table_metric %>% 
+     filter(lookup_metric == input$metric)
+  out <- as.vector(test$Metric)
+   
+ }
+                              ) 
   
    observeEvent(input$recalc, {
    
@@ -427,7 +429,7 @@ output$click_info <- renderTable(metric_data_detail())
                     label = metric_data_labels()$Value,
                      group = "Labels") %>%
       addLayersControl(
-        overlayGroups = c( "EPA Overlay", "Labels", "Routes"), #
+        overlayGroups = c( "EPA Overlay", "Labels"), #
         options = layersControlOptions(collapsed = FALSE), 
         position = "topleft"
       ) #%>%
@@ -448,7 +450,7 @@ output$click_info <- renderTable(metric_data_detail())
                            colors = reactive_legend()$metric_color_group,
                            labels = reactive_legend()$metric_color_label,
                            opacity =  0.9,
-                           title = input$metric)
+                           title = metric_label())
      
    }, ignoreNULL = FALSE)
    
