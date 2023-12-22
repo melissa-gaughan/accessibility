@@ -44,11 +44,26 @@ names(files) <- file_names
 metro <- "https://upload.wikimedia.org/wikipedia/en/thumb/b/bf/King_County_Metro_logo.svg/1280px-King_County_Metro_logo.svg.png"
 
 
-day_type_choices <- unique(files$network_data$`Day Type`)
-start_time_choices <- unique(files$network_data$`Start Time`)
-metric_choices <- sort( c(unique(files$network_data$Metric), unique(files$network_data_details$Metric))) #trying to add in the asset level choices
-trip_length_choices <-  unique(files$network_data$`Max Trip Duration`)
-asset_group_choices <- unique(files$network_data_details$Assettype)
+day_type_choices <- files$lookup_table_day_type$lookup_day_type
+
+names(day_type_choices)<- files$lookup_table_day_type$day_type
+
+start_time_choices <-files$lookup_table_start_time$lookup_start_time
+names(start_time_choices) <- files$lookup_table_start_time$start_time
+
+metric_choices <- files$lookup_table_metric$lookup_metric
+names(metric_choices) <- files$lookup_table_metric$Metric
+
+trip_length_choices <-  files$lookup_table_trip_length$lookup_max_trip_duration
+names(trip_length_choices) <- files$lookup_table_trip_length$max_trip_duration
+
+
+asset_group_choices <- files$lookup_table_asset_group$lookup_asset_group
+names(asset_group_choices) <- files$lookup_table_asset_group$assettype
+
+geography_choices <- files$lookup_table_geography$lookup_geography
+names(geography_choices) <- files$lookup_table_geography$geography
+
                                          
                                        
 
@@ -80,9 +95,7 @@ tabItems(
                        selected = "shopping_center"),
            
            selectInput("geography", "Geography",
-                       choices = c("Block Groups" = "block_group",
-                                   "1/4 Mile Hex" = "quarter_mile_hexagon"
-                       ),
+                       choices = geography_choices,
                        selected = "quarter_mile_hexagon"),
            
           # checkboxInput("legend", "Show legend", TRUE),
@@ -187,22 +200,22 @@ epa_hatch_reactive <- reactive({
       #filter data for user input on metrics#####
   metric_data <- eventReactive(input$recalc, {
     req(input$recalc)
-    if(input$metric %in% unique(files$network_data_details$Metric)){
+    if(input$metric %in% unique(files$network_data_details$`Lookup Metric`)){
       filtered_hex_data <- files$network_data_details %>% 
-        filter(Metric ==   input$metric &
-                 Assettype == input$asset &
-                 `Start Time` == input$start_time &
-                 `Day Type` == input$day_type &
-                 Geography  == input$geography &
-             `Max Trip Duration` == input$trip_length ) %>%
+        filter(`Lookup Metric` ==   input$metric &
+                 `Lookup Asset Group` == input$asset &
+                 `Lookup Start Time` == input$start_time &
+                 `Lookup Day Type` == input$day_type &
+                 `Lookup Geography`  == input$geography &
+             `Lookup Max Trip Duration` == input$trip_length ) %>%
         drop_na(Value) %>%
         filter(!is.nan(Value)) %>%
         filter(!is.infinite(Value)) #%>%
         # filter( Value >= input$metric_range[1] &
         #           Value <= input$metric_range[2] )
       
-      #print(nrow(filtered_hex_data))
-     
+      print(nrow(filtered_hex_data))
+     print("network data details")
      minVal <- min(filtered_hex_data$Value)
      maxVal <- max(filtered_hex_data$Value)
      domain <- c(minVal,maxVal)
@@ -228,17 +241,18 @@ epa_hatch_reactive <- reactive({
        dplyr::left_join(df_pal) %>%
        arrange(metric_color_label)
     } else {
+      print("network data")
       filtered_hex_data <- files$network_data %>% 
-        filter(Metric == input$metric &
-                 `Start Time` == input$start_time &
-                 `Day Type` == input$day_type &
-                 Geography  == input$geography &
-                 `Max Trip Duration` == input$trip_length) %>% 
+        filter(`Lookup Metric` ==   input$metric &
+                 `Lookup Start Time` == input$start_time &
+                 `Lookup Day Type` == input$day_type &
+                 `Lookup Geography`  == input$geography &
+                 `Lookup Max Trip Duration` == input$trip_length) %>% 
         drop_na(Value) %>%
         filter(!is.nan(Value)) %>%
-        filter(!is.infinite(Value)) %>%
-        filter( Value >= input$metric_range[1] &
-                  Value <= input$metric_range[2])
+        filter(!is.infinite(Value))# %>%
+        # filter( Value >= input$metric_range[1] &
+        #           Value <= input$metric_range[2])
       
       minVal <- min(filtered_hex_data$Value)
       maxVal <- max(filtered_hex_data$Value)
@@ -272,7 +286,7 @@ epa_hatch_reactive <- reactive({
 
   
   metric_data_sf <- eventReactive(input$recalc,{
-    if(input$geography == "block_group"){
+    if(input$geography == 1){ # had to hardcode in the lookupval of block group geoid. need to refactor
     block_groups <- files$block_groups %>% 
       left_join(metric_data(), by = "Geoid") %>% 
      drop_na(Value) %>%
@@ -292,7 +306,7 @@ epa_hatch_reactive <- reactive({
   metric_data_labels <- eventReactive(input$recalc,{
     
     
-    if(input$geography == "block_group"){
+    if(input$geography == 1){ # had to hardcode in the lookupval of block group geoid. need to refactor
     files$block_group_centroids %>%
       left_join(metric_data()) %>%
       drop_na(Value) %>%
@@ -330,12 +344,12 @@ observeEvent(input$metric_map_shape_click, {
 
 metric_data_detail <- eventReactive(input$metric_map_shape_click, {
   files$network_data_details %>% 
-    filter(Metric == input$metric &
-             Assettype == input$asset&
-             `Start Time` == input$start_time &
-             `Day Type` == input$day_type &
-             Geography  == input$geography &
-             `Max Trip Duration` == input$trip_length ) 
+    filter(`Lookup Metric` ==   input$metric &
+             `Lookup Asset Group` == input$asset &
+             `Lookup Start Time` == input$start_time &
+             `Lookup Day Type` == input$day_type &
+             `Lookup Geography`  == input$geography &
+             `Lookup Max Trip Duration` == input$trip_length  ) 
    # arrange(`Change in Trips`)
   
   
@@ -380,13 +394,13 @@ output$click_info <- renderTable(metric_data_detail())
       addPolygons( data = metric_data_sf() ,
                    weight = 2, opacity = 1,
                    color = "white",
-                   dashArray = "3",
+                  # dashArray = "3",
                    layerId = metric_data_sf()$Geoid,
                    fillOpacity = 0.7 ,
                    highlightOptions = highlightOptions(
                                weight = 5,
                                color = "#666",
-                               dashArray = "",
+                               #dashArray = "",
                                fillOpacity = 0.7,
                                bringToFront = FALSE) ,   #)#,
                  label = ~paste0(Value,""),
