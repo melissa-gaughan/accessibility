@@ -46,7 +46,8 @@ rm(percent_stops_in_equity_bg_no_geo)
 
 quarter_mile_hex_grid <- sf::read_sf(here::here("input", "hex_grids", "quarter_mile_hex_grid.shp"))%>% 
   mutate(Geoid = as.numeric(rowid))%>% 
-  st_transform(4326)
+  st_transform(4326) %>% 
+  rmapshaper::ms_simplify(keep = .05)
 
 
 #route shapefiles ####
@@ -68,57 +69,35 @@ quarter_mile_hex_grid <- sf::read_sf(here::here("input", "hex_grids", "quarter_m
 #   st_transform(4326)%>% 
 #   rmapshaper::ms_simplify(keep = .2)
 
-# block group metrics #####
-network_data <-  read_csv(here::here( "input",paste0("summary_comparison_233_LLink_4.csv"))) %>% 
-rename(geoid = GEO_ID_GRP) %>% 
-  select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed
-            )) %>% 
-  pivot_longer(cols = !c(geoid:geography), 
-               names_to = "Metric", 
-               values_to = "Value") %>% 
-  janitor::clean_names("title") %>% 
-  mutate(Metric  = stringr::str_replace_all(Metric, "_", " ")) %>% 
-  mutate(Metric = stringr::str_to_title(Metric))
 
-
-
-network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_233_LLink_4.csv"))) %>% 
-  select(-c( percentile, cutoff, run_id, cutoffs,departure_datetime_baseline, departure_datetime_proposed, )) %>% 
-  rename(geoid = GEO_ID_GRP) %>% 
-  pivot_longer(cols = !c(geoid, day_type, start_time,  max_trip_duration, geography, assettype), 
-               names_to = "Metric", 
-               values_to = "Value")%>% 
-  janitor::clean_names("title") %>% 
-  mutate(Metric  = stringr::str_replace_all(Metric, "_", " ")) %>% 
-  mutate(Metric = stringr::str_to_title(Metric))
-
-
-
-parameters_raw <- read_csv("analyses/accessibility/data/input_parameters_weekday_233.csv") %>% 
+parameters_raw <- read_csv("input/input_parameters_weekday_233.csv") %>% 
   mutate(departure_datetime = as.POSIXct(departure_datetime))
 
-parameters <- parameters_raw %>% 
-  select(-c(day_type))
+community_asset_groups <- read_csv("input/community_asset_groups.csv")
 
 
 #create lookup tables
 
 lookup_table_day_type <- tibble(day_type = unique(parameters_raw$day_type)) %>% 
+  mutate(day_type  = stringr::str_replace_all(day_type, "_", " ")) %>% 
+  mutate(day_type = stringr::str_to_title(day_type)) %>% 
   arrange() %>%
   rowid_to_column() %>% 
   rename(lookup_day_type = rowid)
 
-lookup_table_start_time <- tibble(start_time = unique(parameters_raw$start_time)) %>% 
+lookup_table_start_time <- tibble(start_time = unique(parameters_raw$start_time)) %>%
   arrange() %>% 
   rowid_to_column() %>% 
   rename(lookup_start_time = rowid)
 
-lookup_table_trip_length <- tibble(trip_length = unique(parameters_raw$max_trip_duration)) %>% 
+lookup_table_trip_length <- tibble(max_trip_duration = unique(parameters_raw$max_trip_duration)) %>% 
   arrange() %>%
   rowid_to_column() %>% 
-  rename(lookup_trip_length = rowid)
+  rename(lookup_max_trip_duration = rowid)
 
 lookup_table_geography <- tibble(geography= unique(parameters_raw$geography)) %>% 
+  mutate(geography  = stringr::str_replace_all(geography, "_", " ")) %>% 
+  mutate(geography = stringr::str_to_title(geography)) %>% 
   arrange() %>%
   rowid_to_column() %>% 
   rename(lookup_geography = rowid)
@@ -127,6 +106,73 @@ lookup_table_asset_group <- tibble(assettype= unique(community_asset_groups$asse
   arrange() %>%
   rowid_to_column() %>% 
   rename(lookup_asset_group = rowid)
+
+
+#  metrics #####
+network_data <-  read_csv(here::here( "input",paste0("summary_comparison_233_LLink_4.csv"))) %>% 
+rename(geoid = GEO_ID_GRP) %>% 
+  select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
+  pivot_longer(cols = !c(geoid:geography), 
+               names_to = "Metric", 
+               values_to = "Value") %>% 
+  filter(!(Value == .001)) %>%  #remove values that were added as zero replacements for percentages
+  mutate(Value = case_when( stringr::str_detect(Metric, "percent") ~ round(Value*100, 2), 
+                            TRUE ~ round(Value, 0))) %>% 
+  mutate(geography  = stringr::str_replace_all(geography, "_", " ")) %>% 
+  mutate(geography = stringr::str_to_title(geography)) %>% 
+  mutate(day_type  = stringr::str_replace_all(day_type, "_", " ")) %>% 
+  mutate(day_type = stringr::str_to_title(day_type)) %>% 
+  left_join(lookup_table_day_type) %>% 
+  left_join(lookup_table_geography) %>% 
+  left_join(lookup_table_start_time) %>% 
+  left_join(lookup_table_trip_length) %>% 
+  mutate(Metric  = stringr::str_replace_all(Metric, "_", " ")) %>% 
+  mutate(Metric = stringr::str_to_title(Metric)) 
+  
+
+
+
+network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_233_LLink_4.csv"))) %>% 
+  select(-c( percentile, cutoff, run_id, cutoffs,departure_datetime_baseline, departure_datetime_proposed )) %>% 
+  mutate(assettype  = stringr::str_replace_all(assettype, "_", " ")) %>% 
+  mutate(assettype = stringr::str_to_title(assettype)) %>% 
+  rename(geoid = GEO_ID_GRP) %>% 
+  pivot_longer(cols = !c(geoid, day_type, start_time,  max_trip_duration, geography, assettype), 
+               names_to = "Metric", 
+               values_to = "Value") %>% 
+  filter(!(Value == .001)) %>%  #remove values that were added as zero replacements for percentages
+  mutate(Value = case_when( stringr::str_detect(Metric, "percent") ~ round(Value*100, 2), 
+                            TRUE ~ round(Value, 0))) %>% 
+  mutate(geography  = stringr::str_replace_all(geography, "_", " ")) %>% 
+  mutate(geography = stringr::str_to_title(geography)) %>% 
+  mutate(day_type  = stringr::str_replace_all(day_type, "_", " ")) %>% 
+  mutate(day_type = stringr::str_to_title(day_type)) %>% 
+  left_join(lookup_table_asset_group) %>% 
+  left_join(lookup_table_day_type) %>% 
+  left_join(lookup_table_geography) %>% 
+  left_join(lookup_table_start_time) %>% 
+  left_join(lookup_table_trip_length) %>% 
+  mutate(Metric  = stringr::str_replace_all(Metric, "_", " ")) %>% 
+  mutate(Metric = stringr::str_to_title(Metric))
+  
+#produce lookup table of Metrics last to merge two pivoted tables together
+  
+lookup_table_metric <- tibble(Metric = c(unique(network_data$Metric), unique(network_data_details$Metric))) %>% 
+  arrange() %>%
+  rowid_to_column() %>% 
+  rename(lookup_metric = rowid)
+  
+network_data <- network_data %>% 
+  left_join(lookup_table_metric) %>% 
+  janitor::clean_names("title") 
+
+
+
+network_data_details <- network_data_details %>% 
+  left_join(lookup_table_metric) %>% 
+  janitor::clean_names("title") 
+    
+
 
 #the data tables need to be separate because assettype is a separate field that cannot be easily appended to the summary data.
 
@@ -147,7 +193,8 @@ epa_hatch <- block_groups %>%
 #export data objects #####
 rm(project_name)
 rm(test)
-
+rm(parameters_raw)
+rm(community_asset_groups)
 library(purrr)
 library(here)
 
