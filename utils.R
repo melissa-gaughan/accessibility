@@ -5,9 +5,9 @@
 
 
 calculateBucket <- function(min_val,max_val, values_df,  max_bin=10,interval=10,interval_options=seq(10,500,10),center=100,floor_at=NULL,ceil_at=NULL){
-   min_val= minVal
-  max_val = maxVal
-   interval_options=seq(10,500,10)
+  # min_val= minVal
+  #max_val = maxVal
+  # interval_options=seq(10,500,10)
   
   
   min_val_round <- plyr::round_any(min_val,interval,f=floor)
@@ -84,7 +84,7 @@ calculateBucket <- function(min_val,max_val, values_df,  max_bin=10,interval=10,
     # 
     neg_df <- values_df[values_df < 0]
     
-    neg_jenks <- BAMMtools::getJenksBreaks(negs_df, k = neg_bin_num)
+    neg_jenks <- BAMMtools::getJenksBreaks(neg_df, k = neg_bin_num)
      # classInt::classIntervals(neg_df, n = neg_bin_num, style = "jenks")
 
     pos_df <- values_df[values_df>0]

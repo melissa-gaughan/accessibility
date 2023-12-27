@@ -20,52 +20,8 @@ library(here)
 library(leafem)
 # LOAD IN DATA ####
 source("utils.R")
-#filter NAs from hex grids when both baseline and proposed are NA
-#add new metrics : 
-  # > areas with new service #I think the coloring function is failing because it has no negative values
-  # > change in trips per hour
-  # > % change trips per hour #add # formatting to legend?
- #test color scheme for new metrics
-  # add documentation of metrics on separate page 
-      # need to add tabs to side bar
+source("load_data.R")
 
-# look at folder, read in folder names, remove.zip from name 
-files_list <- list.files(here::here("input", "r-objects"), full.names = T)
-files_short_names <- list.files(here::here("input", "r-objects"), full.names = F)
-file_names <-  gsub(pattern = "\\.RDS$", replacement = "", x = basename(files_short_names))
-
-
-files <- map(files_list, readRDS)
-
-names(files) <- file_names
-                            
-
-# UI Choices #####
-metro <- "https://upload.wikimedia.org/wikipedia/en/thumb/b/bf/King_County_Metro_logo.svg/1280px-King_County_Metro_logo.svg.png"
-
-
-day_type_choices <- files$lookup_table_day_type$lookup_day_type
-
-names(day_type_choices)<- files$lookup_table_day_type$day_type
-
-start_time_choices <-files$lookup_table_start_time$lookup_start_time
-names(start_time_choices) <- files$lookup_table_start_time$start_time
-
-metric_choices <- files$lookup_table_metric$lookup_metric
-names(metric_choices) <- files$lookup_table_metric$Metric
-
-trip_length_choices <-  files$lookup_table_trip_length$lookup_max_trip_duration
-names(trip_length_choices) <- files$lookup_table_trip_length$max_trip_duration
-
-
-asset_group_choices <- files$lookup_table_asset_group$lookup_asset_group
-names(asset_group_choices) <- files$lookup_table_asset_group$assettype
-
-geography_choices <- files$lookup_table_geography$lookup_geography
-names(geography_choices) <- files$lookup_table_geography$geography
-
-                                         
-                                       
 
 #UI #####
 
@@ -97,8 +53,6 @@ tabItems(
            selectInput("geography", "Geography",
                        choices = geography_choices,
                        selected = "quarter_mile_hexagon"),
-           
-          # checkboxInput("legend", "Show legend", TRUE),
            actionButton("recalc", "Load Map & Filters")
            
          
@@ -120,40 +74,29 @@ tabItems(
                     "Max Trip Length",
                     choices = trip_length_choices, 
                     multiple = FALSE, 
-                    selected = 45), 
-        sliderInput("metric_range",
-                    label = "Filter Data Range",
-                    min = -100,
-                    max = 100,
-                    value = c(-100, 100))
+                    selected = 45)
    )
    )
    ) 
    
    ),
-
-  #  fluidRow(
+  
   column(width = 12,  
-     
          box(height = "100%",
              id = "map_container",
            width = NULL, solidHeader = TRUE,
            jqui_resizable( 
             # tableOutput("test_table" ) 
             leaflet::leafletOutput("metric_map")#, 
-                          
                            )),
-    
            box(width = NULL, solidHeader = TRUE,            
                jqui_resizable( tableOutput("click_info" ) 
-          
              )))
           
         )
 ,
 tabItem( "Notes",
-          textOutput("note")
-
+         includeMarkdown("help.md")
      )))
 
 
@@ -163,7 +106,7 @@ ui <- dashboardPage(
 sidebar =  dashboardSidebar(
   sidebarMenu( menuItem(
     "Map", tabName = "Map" ), 
-  menuItem( "Notes", tabName = "Notes")
+  menuItem( "FAQ", tabName = "Notes")
      
    )),
   body
@@ -171,9 +114,7 @@ sidebar =  dashboardSidebar(
 # SERVER#####
 server <- function(input, output) {
  
-  # output$markdown <- renderUI({
-  #   HTML(markdown::markdownToHTML('help.md'))
-  # }) 
+  
   
    #MAP FUNCTIONS #####
       #handle route reactivity####
@@ -205,12 +146,11 @@ epa_hatch_reactive <- reactive({
              `Lookup Max Trip Duration` == input$trip_length ) %>%
         drop_na(Value) %>%
         filter(!is.nan(Value)) %>%
-        filter(!is.infinite(Value)) #%>%
-        # filter( Value >= input$metric_range[1] &
-        #           Value <= input$metric_range[2] )
+        filter(!is.infinite(Value)) 
       
-      print(nrow(filtered_hex_data))
-     print("network data details")
+     #  print(nrow(filtered_hex_data))
+     # print("network data details")
+     # 
      minVal <- min(filtered_hex_data$Value)
      maxVal <- max(filtered_hex_data$Value)
      domain <- c(minVal,maxVal)
@@ -219,15 +159,15 @@ epa_hatch_reactive <- reactive({
      interval <- ifelse((maxVal - minVal)>10,10,
                         ifelse((maxVal - minVal)>5,1,0.2))
      color_bucket <- calculateBucket(min_val = minVal,max_val = maxVal,values_df = values_df,
-                                     max_bin=10,interval=interval,#interval_options=seq(from = -100, to = 100, by = 20),
+                                     max_bin=7,interval=interval,#interval_options=seq(from = -100, to = 100, by = 20),
                                      center=0,floor_at=NULL,ceil_at=NULL)
-     print(color_bucket)
+    # print(color_bucket)
      df_pal <- inferColor(color_bucket,
                           color_below = "#b2182b",
                           color_above = "#2166ac",
                           interval=interval,
                           center=center)
-     print(df_pal)
+    # print(df_pal)
      filtered_hex_data <- filtered_hex_data %>%
        mutate(metric_color_label = cut(Value, breaks =unique( color_bucket$breaks),
                                        labels = color_bucket$breaks_label,
@@ -236,7 +176,7 @@ epa_hatch_reactive <- reactive({
        dplyr::left_join(df_pal) %>%
        arrange(metric_color_label)
     } else {
-      print("network data")
+    #  print("network data")
       filtered_hex_data <- files$network_data %>% 
         filter(`Lookup Metric` ==   input$metric &
                  `Lookup Start Time` == input$start_time &
@@ -245,9 +185,9 @@ epa_hatch_reactive <- reactive({
                  `Lookup Max Trip Duration` == input$trip_length) %>% 
         drop_na(Value) %>%
         filter(!is.nan(Value)) %>%
-        filter(!is.infinite(Value))# %>%
-        # filter( Value >= input$metric_range[1] &
-        #           Value <= input$metric_range[2])
+        filter(!is.infinite(Value))
+      
+      #print(nrow(filtered_hex_data))
       
       minVal <- min(filtered_hex_data$Value)
       maxVal <- max(filtered_hex_data$Value)
@@ -259,7 +199,7 @@ epa_hatch_reactive <- reactive({
                          ifelse((maxVal - minVal)>5,1,0.2))
       
       color_bucket <- calculateBucket(min_val = minVal,max_val = maxVal,values_df = values_df,
-                                      max_bin=10,#interval=10,interval_options=seq(10,5000,10),
+                                      max_bin=7,#interval=10,interval_options=seq(10,5000,10),
                                       center=0,floor_at=NULL,ceil_at=NULL)
       df_pal <- inferColor(color_bucket,
                            color_below = "#b2182b",
@@ -411,7 +351,7 @@ output$test_table <- renderTable(metric_data())
                            textsize = "15px",
                            direction = "auto"),
                  fillColor = ~metric_data_sf()$metric_color_group,
-                 popup = ~paste0(input$metric, ": ", Value
+                 popup = ~paste0(metric_label(), ": ", Value
                                  
                                  )
       ) %>%
