@@ -161,7 +161,7 @@ epa_hatch_reactive <- reactive({
      color_bucket <- calculateBucket(min_val = minVal,max_val = maxVal,values_df = values_df,
                                      max_bin=7,interval=interval,#interval_options=seq(from = -100, to = 100, by = 20),
                                      center=0,floor_at=NULL,ceil_at=NULL)
-    # print(color_bucket)
+    print(color_bucket)
      df_pal <- inferColor(color_bucket,
                           color_below = "#b2182b",
                           color_above = "#2166ac",
@@ -206,7 +206,8 @@ epa_hatch_reactive <- reactive({
                            color_above = "#2166ac",
                            interval=interval,
                            center=center)
-      
+      print(color_bucket)
+      #print(values_df)
       
       filtered_hex_data <- filtered_hex_data %>%
         mutate(metric_color_label = cut(Value, breaks = unique(color_bucket$breaks),

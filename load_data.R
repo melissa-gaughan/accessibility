@@ -22,6 +22,7 @@ names(start_time_choices) <- files$lookup_table_start_time$start_time
 
 metric_choices <- files$lookup_table_metric$lookup_metric
 names(metric_choices) <- files$lookup_table_metric$Metric
+metric_choices <- metric_choices[!names(metric_choices) %in% c("Sum Asset Score Proposed", "Sum Asset Score Baseline")]
 
 trip_length_choices <-  files$lookup_table_trip_length$lookup_max_trip_duration
 names(trip_length_choices) <- files$lookup_table_trip_length$max_trip_duration

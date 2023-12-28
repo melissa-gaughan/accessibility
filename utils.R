@@ -9,7 +9,7 @@ calculateBucket <- function(min_val,max_val, values_df,  max_bin=10,interval=10,
   #max_val = maxVal
   # interval_options=seq(10,500,10)
   
-  
+  #if categorical, then.....
   min_val_round <- plyr::round_any(min_val,interval,f=floor)
   max_val_round <- plyr::round_any(max_val,interval,f=ceiling)
   

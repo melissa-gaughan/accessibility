@@ -5,7 +5,7 @@ library(tidyverse)
 library(sf)
 
 library(here)
-project_name <- "Lynnwood_Link_Accessibility"
+#project_name <- "Lynnwood_Link_Accessibility"
 # LOAD IN DATA ####
 block_groups_raw <- sf::read_sf(here::here("input", "2020_block_groups", "blkgrp20_shore.shp")) %>% 
   mutate(Geoid = as.numeric(GEO_ID_GRP))
@@ -41,9 +41,7 @@ block_group_need_scores <- block_group_need_scores %>%
 rm(percent_stops_in_equity_bg_no_geo)
 
 #hex grids
-  
-
-
+ 
 quarter_mile_hex_grid <- sf::read_sf(here::here("input", "hex_grids", "quarter_mile_hex_grid.shp"))%>% 
   mutate(Geoid = as.numeric(rowid))%>% 
   st_transform(4326) %>% 
@@ -109,7 +107,7 @@ lookup_table_asset_group <- tibble(assettype= unique(community_asset_groups$asse
 
 
 #  metrics #####
-network_data <-  read_csv(here::here( "input",paste0("summary_comparison_233_LLink_4.csv"))) %>% 
+network_data <-  read_csv(here::here( "input",paste0("summary_comparison_233_test.csv"))) %>% 
 rename(geoid = GEO_ID_GRP) %>% 
   select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
   pivot_longer(cols = !c(geoid:geography), 
@@ -132,7 +130,7 @@ rename(geoid = GEO_ID_GRP) %>%
 
 
 
-network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_233_LLink_4.csv"))) %>% 
+network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_233_test.csv"))) %>% 
   select(-c( percentile, cutoff, run_id, cutoffs,departure_datetime_baseline, departure_datetime_proposed )) %>% 
   mutate(assettype  = stringr::str_replace_all(assettype, "_", " ")) %>% 
   mutate(assettype = stringr::str_to_title(assettype)) %>% 
@@ -154,6 +152,8 @@ network_data_details <- read_csv(here::here( "input", paste0("asset_group_compar
   left_join(lookup_table_trip_length) %>% 
   mutate(Metric  = stringr::str_replace_all(Metric, "_", " ")) %>% 
   mutate(Metric = stringr::str_to_title(Metric))
+
+unique(network_data_details$Metric)
   
 #produce lookup table of Metrics last to merge two pivoted tables together
   
@@ -161,6 +161,8 @@ lookup_table_metric <- tibble(Metric = c(unique(network_data$Metric), unique(net
   arrange() %>%
   rowid_to_column() %>% 
   rename(lookup_metric = rowid)
+
+lookup_table_metric
   
 network_data <- network_data %>% 
   left_join(lookup_table_metric) %>% 
