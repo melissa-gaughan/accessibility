@@ -112,11 +112,31 @@ calculateBucket <- function(min_val,max_val, values_df,  max_bin=10,interval=10,
     }
   }
   return(list(
-    breaks=breaks,
-    breaks_label=sapply(1:length(breaks_adjusted_for_label), 
-                        function(x) if (x>1) paste0(round(breaks_adjusted_for_label[x-1], 2),      
-                                                    ' to ',
-                                                    round(breaks_adjusted_for_label[x], 2)) else '')[-1]))
+    breaks=unique(breaks),
+    breaks_label=
+      sapply(1:length(breaks_adjusted_for_label),
+                                             function(x) if (breaks_adjusted_for_label[x] == 0){
+                                               paste0("0")
+
+                                             } else if (x>1){
+
+                                              paste0(round(breaks_adjusted_for_label[x-1], 2),
+                                                                         ' to ',
+                                                                        round(breaks_adjusted_for_label[x], 2))
+
+                                             } else {''}
+                                             )[-1]))
+      
+      
+      
+      
+      
+      
+      # 
+      # sapply(1:length(breaks), 
+      #                   function(x) if (x>1) paste0(round(breaks[x-1], 2),      
+      #                                               ' to ',
+      #                                               round(breaks[x], 2)) else '')[-1]))
   # return(tibble(breaks=breaks) %>% 
   #          arrange() %>% 
   #          mutate(breaks_label = case_when(breaks == 0 ~ "0", 
@@ -175,7 +195,9 @@ inferColor <- function(color_bucket, color_below='#e34a33',color_above='#2166ac'
     print(color_val)
     print(color_bucket$breaks_label)
     
-    if( !("0 to 0") %in% color_bucket$breaks_label){
+    if(("0" ) %in% color_bucket$breaks_label){
+      color_labels <- c(color_bucket$breaks_label)
+    } else if(!("0 to 0" ) %in% color_bucket$breaks_label ){
       color_labels <- c("0",color_bucket$breaks_label)
     } else{
       color_labels <- c(color_bucket$breaks_label)
