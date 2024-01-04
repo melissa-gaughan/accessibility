@@ -84,12 +84,13 @@ calculateBucket <- function(min_val,max_val, values_df,  max_bin=10,interval=10,
     # 
     neg_df <- values_df[values_df < 0]
     
-    neg_jenks <- BAMMtools::getJenksBreaks(neg_df, k = neg_bin_num)
+    neg_jenks <- BAMMtools::getJenksBreaks(neg_df, k = neg_bin_num) #
      # classInt::classIntervals(neg_df, n = neg_bin_num, style = "jenks")
 
     pos_df <- values_df[values_df>0]
     
     pos_jenks <- BAMMtools::getJenksBreaks(pos_df,k = pos_bin_num_rev)
+    
     
     breaks <- c(neg_jenks, 0, pos_jenks)
     
@@ -97,7 +98,7 @@ calculateBucket <- function(min_val,max_val, values_df,  max_bin=10,interval=10,
   #  )
   }
   
-  breaks_adjusted_for_label <- breaks
+  breaks_adjusted_for_label <- unique(breaks)  #added unique because the percent change was resulting in tweo -100s for some reason
   if (!is.null(floor_at)){
     if (min(breaks) < floor_at){
       breaks_adjusted_for_label <- c(max(floor_at,breaks_adjusted_for_label[1]), # e.g., floor the break to start from 0 for the original value
@@ -115,16 +116,20 @@ calculateBucket <- function(min_val,max_val, values_df,  max_bin=10,interval=10,
     breaks=unique(breaks),
     breaks_label=
       sapply(1:length(breaks_adjusted_for_label),
-                                             function(x) if (breaks_adjusted_for_label[x] == 0){
-                                               paste0("0")
-
+                                             function(x) if (x == 1 & breaks_adjusted_for_label[x+1] == 0 ){ #adding case for when there is one value below zero and that value is first in the palette list
+                                               paste0(round(breaks_adjusted_for_label[x], 2),
+                                                      ' to 0')
+                                            
                                              } else if (x>1){
 
                                               paste0(round(breaks_adjusted_for_label[x-1], 2),
                                                                          ' to ',
                                                                         round(breaks_adjusted_for_label[x], 2))
 
-                                             } else {''}
+                                             }else  if (breaks_adjusted_for_label[x] == 0){
+                                               paste0("0")
+                                               
+                                            }else {''}
                                              )[-1]))
       
       

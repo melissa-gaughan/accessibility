@@ -114,8 +114,7 @@ rename(geoid = GEO_ID_GRP) %>%
                names_to = "Metric", 
                values_to = "Value") %>% 
   filter(!(Value == .001)) %>%  #remove values that were added as zero replacements for percentages
-  mutate(Value = case_when( stringr::str_detect(Metric, "percent") ~ round(Value*100, 2), 
-                            TRUE ~ round(Value, 0))) %>% 
+  mutate(Value =  round(Value*100, 2)) %>% 
   mutate(geography  = stringr::str_replace_all(geography, "_", " ")) %>% 
   mutate(geography = stringr::str_to_title(geography)) %>% 
   mutate(day_type  = stringr::str_replace_all(day_type, "_", " ")) %>% 
@@ -140,7 +139,7 @@ network_data_details <- read_csv(here::here( "input", paste0("asset_group_compar
                values_to = "Value") %>% 
   filter(!(Value == .001)) %>%  #remove values that were added as zero replacements for percentages
   mutate(Value = case_when( stringr::str_detect(Metric, "percent") ~ round(Value*100, 2), 
-                            TRUE ~ round(Value, 0))) %>% 
+                            TRUE ~ round(Value, 2))) %>% 
   mutate(geography  = stringr::str_replace_all(geography, "_", " ")) %>% 
   mutate(geography = stringr::str_to_title(geography)) %>% 
   mutate(day_type  = stringr::str_replace_all(day_type, "_", " ")) %>% 

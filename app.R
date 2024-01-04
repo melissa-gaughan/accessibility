@@ -102,7 +102,7 @@ tabItem( "Notes",
 
 
 ui <- dashboardPage(
-  dashboardHeader(title = " EastLink Trip Change"),
+  dashboardHeader(title = "Accessibility Analysis"),
 sidebar =  dashboardSidebar(
   sidebarMenu( menuItem(
     "Map", tabName = "Map" ), 
@@ -148,10 +148,7 @@ epa_hatch_reactive <- reactive({
           filter(!is.infinite(Value))
         
         } else{
-          filtered_hex_data <- files$network_data
-          }
-        
-    filtered_hex_data <- filtered_hex_data %>% 
+          filtered_hex_data <- files$network_data %>% 
         filter(`Lookup Metric` ==   input$metric & #no asset filter here
                  `Lookup Start Time` == input$start_time &
                  `Lookup Day Type` == input$day_type &
@@ -160,48 +157,41 @@ epa_hatch_reactive <- reactive({
         drop_na(Value) %>%
         filter(!is.nan(Value)) %>%
         filter(!is.infinite(Value)) 
+        }
       
          #  print(nrow(filtered_hex_data))
          # print("network data details")
          # 
-    if(metric_label() %in% c( "Basket Of Goods Score Baseline",   
-                            "Basket Of Goods Score Proposed",  
-                            "Basket Of Goods Difference" )){
-      print("app 170")
-        minVal <- min(filtered_hex_data$Value)
-        maxVal <- max(filtered_hex_data$Value)
-        domain <- c(minVal,maxVal)
-        values_df <-  filtered_hex_data$Value
-        center <- as.numeric(0)
-        interval <- ifelse((maxVal - minVal)>10,10,
-                            ifelse((maxVal - minVal)>5,1,0.2))
-        color_bucket <- calculateBucket(min_val = minVal,max_val = maxVal,values_df = values_df,
-                                         max_bin=7,interval=interval,#interval_options=seq(from = -100, to = 100, by = 20),
-                                         center=0,floor_at=NULL,ceil_at=NULL) 
-  
-        color_bucket_df <- as_tibble(color_bucket)
-        class(color_bucket_df)
-        print(color_bucket_df)
-        
-        df_pal <- inferColor(color_bucket,
-                              color_below = "#b2182b",
-                              color_above = "#2166ac",
-                              interval=interval,
-                              center=center)
-        
-        print( df_pal)
-        print("colorbuck breaks")
-        print(nrow(color_bucket$breaks))
-        print("colorbucket labels")
-        print(nrow(color_bucket$breaks_label))
-         filtered_hex_data <- filtered_hex_data %>%
-           left_join(color_bucket_df, by = c("Value"= "breaks")) %>%  #serious work left to be done on figuring out how to handle categorical data in the coloring utils. 
-           mutate(metric_color_label = factor(Value, labels = color_bucket_df$breaks_label)) %>%
-         #  mutate(metric_color_label = as.factor(metric_color_label)) %>%
-           dplyr::left_join(df_pal) %>%
-           arrange(metric_color_label)
-    } else {
-      print("app 196")
+
+      minVal <- min(filtered_hex_data$Value)
+      maxVal <- max(filtered_hex_data$Value)
+      domain <- c(minVal,maxVal)
+      values_df <-  filtered_hex_data$Value
+      center <- as.numeric(0)
+      interval <- ifelse((maxVal - minVal)>10,10,
+                         ifelse((maxVal - minVal)>5,1,0.2))
+      color_bucket <- calculateBucket(min_val = minVal,max_val = maxVal,values_df = values_df,
+                                      max_bin=7,interval=interval,#interval_options=seq(from = -100, to = 100, by = 20),
+                                      center=0,floor_at=NULL,ceil_at=NULL) 
+      # 
+      # color_bucket_df <- as_tibble(color_bucket)
+      # class(color_bucket_df)
+      # print(color_bucket_df)
+      
+      #Percent change still breaking
+      #parks missing from asset choices
+      
+      df_pal <- inferColor(color_bucket,
+                           color_below = "#b2182b",
+                           color_above = "#2166ac",
+                           interval=interval,
+                           center=center)
+      
+      # print( df_pal)
+      # print("colorbuck breaks")
+      # print(color_bucket$breaks)
+      # print("colorbucket labels")
+      # print(color_bucket$breaks_label)
       
       filtered_hex_data <- filtered_hex_data %>%
         mutate(metric_color_label = cut(Value, breaks = color_bucket$breaks,
@@ -210,7 +200,7 @@ epa_hatch_reactive <- reactive({
         mutate(metric_color_label = as.factor(metric_color_label)) %>%
         dplyr::left_join(df_pal) %>%
         arrange(metric_color_label)
-    }
+    
   
      }, ignoreNULL = FALSE)
 
