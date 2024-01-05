@@ -35,6 +35,7 @@ geography_choices <- files$lookup_table_geography$lookup_geography
 names(geography_choices) <- files$lookup_table_geography$geography
 
 #help page
-
-rmdfiles <- c("help.rmd")
-sapply(rmdfiles, knitr::knit , quiet = T)
+# 
+# rmdfiles <- c("help.qmd")
+# sapply(rmdfiles, knitr::knit , quiet = T)
+# knitr::knit("help.qmd")

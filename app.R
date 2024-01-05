@@ -96,7 +96,7 @@ tabItems(
         )
 ,
 tabItem( "Notes",
-         includeMarkdown("help.md")
+         includeMarkdown("help.qmd")
      )))
 
 
