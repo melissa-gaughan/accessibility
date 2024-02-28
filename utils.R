@@ -177,44 +177,46 @@ inferColor <- function(color_bucket, color_below='#e34a33',color_above='#2166ac'
   # color_center='white'
   # interval=10
   # center=0
-  # breaks <- breaks
-  
+   #breaks <- c(-6, -5, -4, -3, -2, -1, 0)
+   
+   # abs(sum(sign(breaks)))
+   # length(breaks)-1
   breaks <- color_bucket$breaks
   
   breaks_above <- breaks[breaks>=0]
   breaks_below <- breaks[breaks<=0]
   
-  max_bin_oneside <- max(length(breaks[breaks<=0])-1, length(breaks[breaks>=0])-1)
+  max_bin_oneside <- max(length(breaks[breaks<=0])-1, length(breaks[breaks>=0])-1) #includes zero
   
-  if (abs(sum(sign(breaks))) >= length(breaks)-1){ # -1 to take 0 into consideration
+  # if (abs(sum(sign(breaks))) >= length(breaks)-1){ # -1 to take 0 into consideration
+  #   
+  #   # +1 so that the group around 0 gets slightly different color than white
+  #   # then remove the white color
+  #   color_val <- if (length(breaks_below)<2 | sum(breaks_below) == 0) { #added sum = 0 to catch cases where there are 2 values in breaks_below, both zero
+  #     colorRampPalette(colors = c(color_center, color_above), space = "Lab")(max_bin_oneside+1)
+  #   }else{
+  #     colorRampPalette(colors = c(color_below, color_center), space = "Lab")(max_bin_oneside+1)[-(max_bin_oneside+1)]
+  #   }
+  #   print(175)
+  #   print(breaks)
+  #   print(color_val)
+  #   print(color_bucket$breaks_label)
+  #   
+  #   if(("0" ) %in% color_bucket$breaks_label){
+  #     color_labels <- c(color_bucket$breaks_label)
+  #   } else if(!("0 to 0" ) %in% color_bucket$breaks_label ){
+  #     color_labels <- c("0",color_bucket$breaks_label)
+  #   } else{
+  #     color_labels <- c(color_bucket$breaks_label)
+  #   }
+  #   return(
+  #     
+  #     
+  #     data.frame(metric_color_group = color_val,
+  #                     metric_color_label = as.factor(color_labels),
+  #                     stringsAsFactors = F))
     
-    # +1 so that the group around 0 gets slightly different color than white
-    # then remove the white color
-    color_val <- if (length(breaks_below)<2 | sum(breaks_below) == 0) { #added sum = 0 to catch cases where there are 2 values in breaks_below, both zero
-      colorRampPalette(colors = c(color_center, color_above), space = "Lab")(max_bin_oneside+1)
-    }else{
-      colorRampPalette(colors = c(color_below, color_center), space = "Lab")(max_bin_oneside+1)[-(max_bin_oneside+1)]
-    }
-    print(175)
-    print(breaks)
-    print(color_val)
-    print(color_bucket$breaks_label)
-    
-    if(("0" ) %in% color_bucket$breaks_label){
-      color_labels <- c(color_bucket$breaks_label)
-    } else if(!("0 to 0" ) %in% color_bucket$breaks_label ){
-      color_labels <- c("0",color_bucket$breaks_label)
-    } else{
-      color_labels <- c(color_bucket$breaks_label)
-    }
-    return(
-      
-      
-      data.frame(metric_color_group = color_val,
-                      metric_color_label = as.factor(color_labels),
-                      stringsAsFactors = F))
-    
-  }else{
+ # }else{
     if (sum(breaks_below) == 0){
       ## when there are two 0 in breaks (only one region), we want to create a unique color group 100-100 that's white
       ## also max_bin_oneside gets two 0 counted, need to take 1 out
@@ -236,10 +238,10 @@ inferColor <- function(color_bucket, color_below='#e34a33',color_above='#2166ac'
     }
    
     
-     print(nrow(color_val))
-    print(nrow(color_bucket))
+     print(length(color_val))
+    print(length(color_bucket))
     return(data.frame(metric_color_group = color_val,
                       metric_color_label = as.factor(color_bucket$breaks_label),
                       stringsAsFactors = F))
   }
-}
+#}

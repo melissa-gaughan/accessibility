@@ -3,7 +3,8 @@
 library(tidyverse)
 
 library(sf)
-
+library(gg.layers)
+#library(cartography)
 library(here)
 #project_name <- "Lynnwood_Link_Accessibility"
 # LOAD IN DATA ####
@@ -47,6 +48,30 @@ quarter_mile_hex_grid <- sf::read_sf(here::here("input", "hex_grids", "quarter_m
   st_transform(4326) %>% 
   rmapshaper::ms_simplify(keep = .05)
 
+parks <- read_sf(here::here("input", "KCParkAccess.gdb"), layer = "KCParkAccessPoints")%>%
+  st_transform(2926) %>% 
+  janitor::clean_names() %>% 
+  mutate(name = sitename, 
+         address = closest_int, 
+         assettype = "park", 
+         codetype = "PK", 
+         year = 2023,
+         asset_group = "Park") %>% 
+  select(name, address, assettype, codetype, point_x, 
+         point_y, year, Shape, asset_group) %>% 
+  distinct(address, .keep_all = T)
+
+community_asset_groups <- read_csv("input/community_asset_groups.csv") %>% 
+  select(-type)
+# load and clean community assets. Join to hex dataframe
+community_assets <-sf::read_sf(here::here("input", "CommunityAssets2023.gdb"), 
+                               layer = "CommunityAssets_January2023") %>%
+  st_transform(2926) %>% 
+  janitor::clean_names() %>% 
+  left_join(community_asset_groups) %>% 
+  bind_rows(parks)
+
+rm(parks)
 
 #route shapefiles ####
 # proposed_network <- sf::read_sf("input/scenario/planner_var_shape.shp") %>% 
@@ -68,10 +93,8 @@ quarter_mile_hex_grid <- sf::read_sf(here::here("input", "hex_grids", "quarter_m
 #   rmapshaper::ms_simplify(keep = .2)
 
 
-parameters_raw <- read_csv("input/input_parameters_weekday_233.csv") %>% 
+parameters_raw <- read_csv("input/input_parameters_all_days_233.csv") %>% 
   mutate(departure_datetime = as.POSIXct(departure_datetime))
-
-community_asset_groups <- read_csv("input/community_asset_groups.csv")
 
 
 #create lookup tables
@@ -107,14 +130,14 @@ lookup_table_asset_group <- tibble(assettype= unique(community_asset_groups$asse
 
 
 #  metrics #####
-network_data <-  read_csv(here::here( "input",paste0("summary_comparison_233_test.csv"))) %>% 
+network_data <-  read_csv(here::here( "input",paste0("summary_comparison_233_mc_12PM.csv"))) %>% 
 rename(geoid = GEO_ID_GRP) %>% 
   select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
   pivot_longer(cols = !c(geoid:geography), 
                names_to = "Metric", 
                values_to = "Value") %>% 
   filter(!(Value == .001)) %>%  #remove values that were added as zero replacements for percentages
-  mutate(Value =  round(Value*100, 2)) %>% 
+  mutate(Value =  round(Value*100, 2)) %>% #convert basket of goods score from 0-1 scale to 0-100
   mutate(geography  = stringr::str_replace_all(geography, "_", " ")) %>% 
   mutate(geography = stringr::str_to_title(geography)) %>% 
   mutate(day_type  = stringr::str_replace_all(day_type, "_", " ")) %>% 
@@ -129,7 +152,7 @@ rename(geoid = GEO_ID_GRP) %>%
 
 
 
-network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_233_test.csv"))) %>% 
+network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_233_mc_12PM.csv"))) %>% 
   select(-c( percentile, cutoff, run_id, cutoffs,departure_datetime_baseline, departure_datetime_proposed )) %>% 
   mutate(assettype  = stringr::str_replace_all(assettype, "_", " ")) %>% 
   mutate(assettype = stringr::str_to_title(assettype)) %>% 
@@ -159,7 +182,8 @@ unique(network_data_details$Metric)
 lookup_table_metric <- tibble(Metric = c(unique(network_data$Metric), unique(network_data_details$Metric))) %>% 
   arrange() %>%
   rowid_to_column() %>% 
-  rename(lookup_metric = rowid)
+  rename(lookup_metric = rowid) %>% 
+  filter(!Metric %in% c("Id Baseline", "Id Proposed") )
 
 lookup_table_metric
   
@@ -170,10 +194,12 @@ network_data <- network_data %>%
 
 
 network_data_details <- network_data_details %>% 
+  filter(!Metric %in% c("Id Baseline", "Id Proposed") ) %>% 
   left_join(lookup_table_metric) %>% 
   janitor::clean_names("title") 
     
-
+sum(is.na(network_data_details$`Lookup Metric`))
+sum(is.na(network_data$`Lookup Metric`))
 
 #the data tables need to be separate because assettype is a separate field that cannot be easily appended to the summary data.
 
@@ -182,14 +208,21 @@ block_group_need_scores<- block_group_need_scores %>%
   mutate(Geoid = as.numeric(Geoid)) %>% 
   select(Geoid, final_score)
 
+
 epa_hatch <- block_groups %>%
   left_join(block_group_need_scores) %>% 
   mutate(equity_priority_area = ifelse(final_score >= 4, TRUE, FALSE)) %>%
   filter(equity_priority_area) %>% # filter for tracts that I want to receive a cross-hatch
-  st_make_valid(geos_method = "valid_structure") %>% 
-  HatchedPolygons::hatched.SpatialPolygons(density = 700, angle = 60) %>%
+  #st_make_valid(geos_method = "valid_structure") %>% #did't need this to complete 24.02.09
+  st_cast(to= "MULTIPOLYGON") %>% 
+  gg.layers::st_hatched_polygon(density = 700, angle = 60) %>% 
+  #hatchedLayer( pattern = "left2right") %>% 
+  #HatchedPolygons::hatched.SpatialPolygons(density = 700, angle = 60) %>%
   st_set_crs(4326) %>%
   mutate(col = 1) 
+
+
+
 
 #export data objects #####
 rm(project_name)

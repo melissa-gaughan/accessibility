@@ -1,7 +1,9 @@
 ---
 title: "Transit Accessibility"
 toc: true
-format: html
+format:
+  html:
+    embed-resources: true
 theme: flatly
 editor: visual
 ---
@@ -14,7 +16,7 @@ This app shows the countywide transit accessibility for two transit networks. Ri
 
 The app can be used to look at access to different types of community assets and jobs throughout a typical week. Use the filters on the map to choose a start time for the trip, a maximum trip length, a display geography and a metric. More on metrics in a minute.
 
-## Defining Transit Accessibility 
+## Defining Transit Accessibility
 
 **Transit Accessibility:** How many places someone can get to using transit in a certain amount of time from their starting location.
 

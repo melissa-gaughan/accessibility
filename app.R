@@ -18,6 +18,7 @@ library(sf)
 library(rsconnect)
 library(here)
 library(leafem)
+library(shinyalert)
 # LOAD IN DATA ####
 source("utils.R")
 source("load_data.R")
@@ -96,8 +97,17 @@ tabItems(
         )
 ,
 tabItem( "Notes",
-         includeMarkdown("help.qmd")
-     )))
+         fluidRow(
+           
+           jqui_resizable(
+             box(title = "Documentation", 
+                 width = 10, 
+                 solidHeader = TRUE,
+                 status = "warning", 
+                 collapsible = F,
+                 column(width = 12,
+          includeMarkdown("faq/help.rmd")))
+     )))))
 
 
 
@@ -114,8 +124,7 @@ sidebar =  dashboardSidebar(
 # SERVER#####
 server <- function(input, output) {
  
-  
-  
+
    #MAP FUNCTIONS #####
       #handle route reactivity####
   
@@ -163,8 +172,8 @@ epa_hatch_reactive <- reactive({
          # print("network data details")
          # 
 
-      minVal <- min(filtered_hex_data$Value)
-      maxVal <- max(filtered_hex_data$Value)
+      minVal <- min(filtered_hex_data$Value, na.rm = T)
+      maxVal <- max(filtered_hex_data$Value,  na.rm = T)
       domain <- c(minVal,maxVal)
       values_df <-  filtered_hex_data$Value
       center <- as.numeric(0)
@@ -382,43 +391,23 @@ output$test_table <- renderTable(metric_data())
 
 
   
-  
-    
-  # NOTES SERVER #####
-  
-  output$note <- renderText("This app shows the difference in vehicle trips and vehicle capacity for the EastLink Restructure 2022 Final Proposal.
-This tool is for planning purposes only and does not show final data.
-Please contact Melissa Gaughan with questions. Last updated 2023.11.30.")
-  
- 
-  #TABLE FUNCTIONS #####  
-  
-  # Ok time for some dev work here. 
-  # If user input == headways, go to GTFS folder, grab specified GTFS 
-  #Calculate avg headways for weekdays, weekends by period
-  #display by route, else calculate trips by time period
-  
-  #If user is on change tab, use results from network 1 and 2 to find differences. 
-  # Routes that are not in baseline network get flagged as new. Rotues that are 
-  # not in second network get flagged as deleted. Both new/deleted routes sent to second table on change tab
-  
-
- 
-  # 
-  # output$click_info <- renderText({  
-  #   location_info <- reactiveValuesToList(rv_location)
-  #   
-  #   HTML(paste(h3(rv_location$id)))
-  #   })
-    
+   shinyalert(
+     title = "King County Metro Transit Accessibility",
+     text = "This app compares the transit accessibility of various community assets using the Fall 2023 King County Metro network (baseline network) and a Remix network where Route 7 was deleted from the Fall 2023 network (proposed network). See the FAQ for more information.",
+     size = "s", 
+     closeOnEsc = TRUE,
+     closeOnClickOutside = TRUE,
+     html = FALSE,
+     type = "",
+     showConfirmButton = TRUE,
+     showCancelButton = FALSE,
+     confirmButtonText = "OK",
+     confirmButtonCol = "#AEDEF4",
+     timer = 0,
+     imageUrl = metro,
+     animation = TRUE
+   )
    
-  
-  
-  output$note2 <- renderText("note2")
-  
-  output$note3 <- renderText("note3")
-  
- # output$geography <- renderText(paste0(input$geography))
 
  
 }
