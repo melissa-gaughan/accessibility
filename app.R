@@ -6,7 +6,6 @@
 #
 #    https://github.com/IBM-DSE/Shiny-Examples-with-Blog/blob/master/1%20-%20Leaflet%20-%20Center%20Diverging%20Colors/app.R
 
-#NOTE Need to handle the centroid call outside of the reactive function
 library(shiny)
 library(shinydashboard)
 library(shinyjqui)
@@ -23,7 +22,15 @@ library(shinyalert)
 source("utils.R")
 source("load_data.R")
 
+#TASKS#
 
+# 1. Grey out asset selection if basdket of goods metrics selected
+# 2. Grey out jobs if basket of goods is selected
+#3. Table: igf basket of goods is loaded, show table of access for each type of asset at the selected time
+#4. Make percents have percent labels
+#5. make ggplot table not use sci notation
+#6. ggplot:" hover for data
+#7. in processing, ensure that values are not crazy. dividing by .01 is making distribvutions really off. 
 #UI #####
 
 
@@ -82,17 +89,23 @@ tabItems(
    
    ),
   
-  column(width = 12,  
+  column(width = 8,  
          box(height = "100%",
              id = "map_container",
            width = NULL, solidHeader = TRUE,
            jqui_resizable( 
             # tableOutput("test_table" ) 
             leaflet::leafletOutput("metric_map")#, 
-                           )),
-           box(width = NULL, solidHeader = TRUE,            
-               jqui_resizable( tableOutput("click_info" ) 
-             )))
+                           ))),
+  column(width = 4, 
+           box(height = "100%",width = NULL, solidHeader = TRUE,            
+               jqui_resizable( plotOutput("plot" ) 
+             ))), 
+  column(width = 12, 
+         box(height = "100%",width = NULL, solidHeader = TRUE,
+             jqui_resizable( tableOutput("table" )
+             ))
+         )
           
         )
 ,
@@ -259,31 +272,81 @@ epa_hatch_reactive <- reactive({
       arrange(metric_color_label)
   })
 
-rv_location <- reactiveValues(id=NULL,lat=NULL,lng=NULL)
+# rv_location <- reactiveValues(id=NULL,lat=NULL,lng=NULL)
+# 
+# observeEvent(input$metric_map_shape_click, {
+#   map_land_shape_click_info <- input$metric_map_shape_click
+# 
+#   
+#   rv_location$id <-  map_land_shape_click_info$id 
+# })
+# 
+# print(rv_location$id)
+
+
+click_county <- reactiveVal()
 
 observeEvent(input$metric_map_shape_click, {
-  map_land_shape_click_info <- input$metric_map_shape_click
-  # map_land_click_info <- input$map_land_click
-  
-  rv_location$id <-  map_land_shape_click_info$id #str_split_fixed(map_land_shape_click_info$id,'\\|',2)[2] # take the second part which is county name
-  # rv_location$lat <- round(map_land_click_info$lat,4)
-   #rv_location$lng <- round(map_land_click_info$lng,4)
+  # Capture the info of the clicked polygon
+  if(!is.null(click_county()) && click_county() == input$metric_map_shape_click$id)
+    click_county(NULL)     # Reset filter
+  else
+    click_county(input$metric_map_shape_click$id)
+  print(click_county)
 })
 
 
-metric_data_detail <- eventReactive(input$metric_map_shape_click, {
-  files$network_data_details %>% 
-    filter(`Lookup Metric` ==   input$metric &
-             `Lookup Asset Group` == input$asset &
-             `Lookup Start Time` == input$start_time &
-             `Lookup Day Type` == input$day_type &
-             `Lookup Geography`  == input$geography &
-             `Lookup Max Trip Duration` == input$trip_length  ) 
-   # arrange(`Change in Trips`)
-  
-  
+
+
+
+
+metric_data_detail <- reactive({
+
+      if(is.null(click_county())) {
+        NULL    # Not filtered
+     } else {
+        metric_data() %>% filter( Geoid==click_county()) %>% 
+         select(c(Geoid, `Start Time`, `Day Type`, `Max Trip Duration`, 
+                  `Geography`, `Metric`, `Value`))
+}
+
+
+
 })
 
+output$table <- renderTable({
+  metric_data_detail()
+  })
+
+metric_label_plot <- reactive({
+  metric_choices[metric_choices ==input$metric] })
+
+geography_label <- reactive({
+ geography_choices[geography_choices ==input$geography] })
+
+start_time_label <- reactive({
+  start_time_choices[start_time_choices ==input$start_time] })
+
+day_type_label <- reactive({
+  day_type_choices[day_type_choices ==input$day_type] })
+
+trip_length_label <- reactive({
+  trip_length_choices[trip_length_choices ==input$trip_length] })
+
+output$plot <- renderPlot({ 
+  ggplot(data = metric_data(), aes(Value)) +
+    geom_histogram( bins = 100  )+
+    ggthemes::theme_few( ) +
+    labs(title = "Distribution of County-Wide Accessibility",
+         subtitle = paste0( names(metric_label_plot()), " (", names(geography_label()), " at ", names(start_time_label()), " on ", names(day_type_label()),", ", names(trip_length_label()), " minute max trip length)" )) +
+    xlab( names(metric_label_plot())) +
+    ylab ("Count of Geographies")+
+    theme(
+      plot.title = ggtext::element_markdown(), 
+      plot.subtitle =  ggtext::element_markdown()
+    )
+  
+  })  
 output$click_info <- renderTable(metric_data_detail())
 
 output$test_table <- renderTable(metric_data())
@@ -393,7 +456,7 @@ output$test_table <- renderTable(metric_data())
   
    shinyalert(
      title = "King County Metro Transit Accessibility",
-     text = "This app compares the transit accessibility of various community assets using the Fall 2023 King County Metro network (baseline network) and a Remix network where Route 7 was deleted from the Fall 2023 network (proposed network). See the FAQ for more information.",
+     text = "This app compares the transit accessibility of various community assets using the Fall 2023 King County Metro network (baseline network) and the Metro Connects long range planning transit network (proposed network). See the FAQ for more information.",
      size = "s", 
      closeOnEsc = TRUE,
      closeOnClickOutside = TRUE,
