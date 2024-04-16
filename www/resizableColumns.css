@@ -1,0 +1,106 @@
+.container {
+  margin-top: 50px;
+}
+
+.row {
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.row:hover {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+.row > .col-sm-1,
+.row > .col-sm-2,
+.row > .col-sm-3,
+.row > .col-sm-4,
+.row > .col-sm-5,
+.row > .col-sm-6,
+.row > .col-sm-7,
+.row > .col-sm-8,
+.row > .col-sm-9,
+.row > .col-sm-10,
+.row > .col-sm-11,
+.row > .col-sm-12 {
+  min-height: 100px;
+}
+
+.row > .col-sm-1:before,
+.row > .col-sm-2:before,
+.row > .col-sm-3:before,
+.row > .col-sm-4:before,
+.row > .col-sm-5:before,
+.row > .col-sm-6:before,
+.row > .col-sm-7:before,
+.row > .col-sm-8:before,
+.row > .col-sm-9:before,
+.row > .col-sm-10:before,
+.row > .col-sm-11:before,
+.row > .col-sm-12:before {
+  content: '';
+  display: block;
+  position: absolute;
+  top: 0;
+  right: 15px;
+  bottom: 0;
+  left: 15px;
+  background-color: rgba(255, 255, 255, 0.25);
+}
+
+.row > .col-sm-1:hover:before,
+.row > .col-sm-2:hover:before,
+.row > .col-sm-3:hover:before,
+.row > .col-sm-4:hover:before,
+.row > .col-sm-5:hover:before,
+.row > .col-sm-6:hover:before,
+.row > .col-sm-7:hover:before,
+.row > .col-sm-8:hover:before,
+.row > .col-sm-9:hover:before,
+.row > .col-sm-10:hover:before,
+.row > .col-sm-11:hover:before,
+.row > .col-sm-12:hover:before {
+  background-color: rgba(255, 255, 255, 0.5);
+}
+
+/* Resizable Grid */
+
+.resizable-grid > .resizable-row > .resizable-column > .resizable-column-handle {
+  z-index: 100;
+  display: none;
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 6px;
+  cursor: col-resize;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -ms-touch-action: none;
+  touch-action: none;
+}
+
+.resizable-grid > .resizable-row > .resizable-column > .resizable-column-handle-w {
+  left: 12px;
+}
+
+.resizable-grid > .resizable-row > .resizable-column > .resizable-column-handle-e {
+  right: 12px;
+}
+
+.resizable-grid > .resizable-row > .resizable-column:first-child:not(:last-child) > .resizable-column-handle-e,
+.resizable-grid > .resizable-row > .resizable-column:not(:first-child):not(:last-child) > .resizable-column-handle-w,
+.resizable-grid > .resizable-row > .resizable-column:not(:first-child):not(:last-child) > .resizable-column-handle-e,
+.resizable-grid > .resizable-row > .resizable-column:last-child:not(:first-child) > .resizable-column-handle-w {
+  display: block;
+}
+
+.resizable-grid-resizing {
+  cursor: col-resize;
+}
+
+.resizable-grid > .resizable-row-resizing > .resizable-column:not(.resizable-column-resizing) {
+  opacity: 0.5;
+}

@@ -24,8 +24,8 @@ source("load_data.R")
 
 #TASKS#
 
-# 1. Grey out asset selection if basdket of goods metrics selected
-# 2. Grey out jobs if basket of goods is selected
+# 1. Grey out asset selection if basdket of goods metrics selected # DONE
+# 2. Grey out jobs if basket of goods is selected # DONE as part of 1
 #3. Table: igf basket of goods is loaded, show table of access for each type of asset at the selected time
 #4. Make percents have percent labels
 #5. make ggplot table not use sci notation
@@ -38,15 +38,26 @@ body <- dashboardBody(
 tabItems(
   tabItem(
     tabName = "Map", #need to wrap body in tabItems to ID which tab the values show on
-  fluidRow(
+    tags$head(
+      tags$script(src = "https://code.jquery.com/ui/1.12.1/jquery-ui.js"),
+      tags$link(rel = "stylesheet", href = "resizableColumns.css"),
+      tags$script(src = "resizableColumns.js")
+    ),
+    tags$div(
+      id = "layout",
+    fluidRow(
 
-         jqui_resizable(
+         #jqui_resizable(
          box(title = "Metric Filters", 
              width = 12, 
              solidHeader = TRUE,
              status = "warning", 
              collapsible = T,
-             column(width = 6,
+              column(width = 2, 
+                     strong("How many places can someone get to using transit in a certain about of time?"), 
+                     p("Use the filters to select a day, start time, trip length, geography and metric. If you select a Basket of Goods metric, you do not need to select an asset type."), 
+                     p("Learn more about the analysis in the FAQ")),
+             column(width = 5,
            selectInput("metric",
                        "Metric",
                        choices = metric_choices, 
@@ -54,18 +65,16 @@ tabItems(
                        selected = "Count Proposed"),
            selectInput("asset",
                        "Asset Type",
-                       choices = asset_group_choices, 
-                       multiple = FALSE, 
-                       selected = "shopping_center"),
-           
+                       choices = NULL, 
+                       multiple = FALSE), 
            selectInput("geography", "Geography",
                        choices = geography_choices,
-                       selected = "quarter_mile_hexagon"),
-           actionButton("recalc", "Load Map & Filters")
+                       selected = "quarter_mile_hexagon")
            
          
+         
          ),
-  column(width = 6,
+  column(width = 5,
         selectInput("day_type",
                     "Day",
                     choices = day_type_choices, 
@@ -82,43 +91,60 @@ tabItems(
                     "Max Trip Length",
                     choices = trip_length_choices, 
                     multiple = FALSE, 
-                    selected = 45)
+                    selected = 45), 
+       
+        actionButton("recalc", "Load", class = "btn btn-warning")
+        
    )
    )
    ) 
    
-   ),
+   ,
   
   column(width = 8,  
-         box(height = "100%",
+         box(title = "Map of Transit Access (click a shape to view details)",
+           height = "100%",   status = "primary",
              id = "map_container",
            width = NULL, solidHeader = TRUE,
-           jqui_resizable( 
+     
             # tableOutput("test_table" ) 
             leaflet::leafletOutput("metric_map")#, 
-                           ))),
+                           )),
   column(width = 4, 
-           box(height = "100%",width = NULL, solidHeader = TRUE,            
-               jqui_resizable( plotOutput("plot" ) 
-             ))), 
+           box(title = "Distribution of County-Wide Accessibility",
+               status = "primary", collapsible = TRUE,
+             height = "100%",width = NULL, solidHeader = TRUE,            
+              plotOutput("plot" ) 
+             )), 
   column(width = 12, 
-         box(height = "100%",width = NULL, solidHeader = TRUE,
-             jqui_resizable( tableOutput("table" )
-             ))
-         )
+         box(title = "Details Table (click on map to populate)",
+             status = "primary",
+           height = "100%",width = NULL, solidHeader = TRUE,
+           collapsible = TRUE,
+          tableOutput("table" )
+             )
+         ))
           
         )
 ,
 tabItem( "Notes",
+         tags$head(
+           tags$script(src = "https://code.jquery.com/ui/1.12.1/jquery-ui.js"),
+           tags$link(rel = "stylesheet", href = "resizableColumns.css"),
+           tags$script(src = "resizableColumns.js")
+         ),
+         tags$div(
+           id = "layout",
          fluidRow(
-           
-           jqui_resizable(
+           column(width = 10,
+          # jqui_resizable(
              box(title = "Documentation", 
                  width = 10, 
+                 height = "100%",
                  solidHeader = TRUE,
                  status = "warning", 
                  collapsible = F,
-                 column(width = 12,
+        
           includeMarkdown("faq/help.rmd")))
      )))))
 
@@ -139,18 +165,30 @@ server <- function(input, output) {
  
 
    #MAP FUNCTIONS #####
-      #handle route reactivity####
-  
- 
-# conditional <- function(condition, success){
-#     if(condition) success else TRUE
-#   }  
- 
-
+   
 epa_hatch_reactive <- reactive({
   epa <- files$epa_hatch %>% 
     sf::st_as_sf()
 })
+
+asset_reactive<- reactive({
+  if(input$metric %in% unique(files$network_data_details$`Lookup Metric`)){
+    asset_group_choices
+  
+  } else{
+    ""
+  }
+  
+})
+
+observeEvent(asset_reactive(), {
+  #req(input$network)
+  #freezeReactiveValue(input, "routes")
+  choices <-  asset_reactive()
+  updateSelectInput( inputId = "asset", choices = choices)
+})
+
+
 
 
 
@@ -272,16 +310,6 @@ epa_hatch_reactive <- reactive({
       arrange(metric_color_label)
   })
 
-# rv_location <- reactiveValues(id=NULL,lat=NULL,lng=NULL)
-# 
-# observeEvent(input$metric_map_shape_click, {
-#   map_land_shape_click_info <- input$metric_map_shape_click
-# 
-#   
-#   rv_location$id <-  map_land_shape_click_info$id 
-# })
-# 
-# print(rv_location$id)
 
 
 click_county <- reactiveVal()
@@ -313,6 +341,8 @@ metric_data_detail <- reactive({
 
 
 })
+
+
 
 output$table <- renderTable({
   metric_data_detail()
@@ -456,11 +486,12 @@ output$test_table <- renderTable(metric_data())
   
    shinyalert(
      title = "King County Metro Transit Accessibility",
-     text = "This app compares the transit accessibility of various community assets using the Fall 2023 King County Metro network (baseline network) and the Metro Connects long range planning transit network (proposed network). See the FAQ for more information.",
+     text = ("<b>Visit the FAQ page!.</b> </br>This app compares the transit accessibility of various community assets using the Fall 2023 King County Metro network (baseline network) and the Metro Connects long range planning transit network (proposed network)."),
+       
      size = "s", 
      closeOnEsc = TRUE,
      closeOnClickOutside = TRUE,
-     html = FALSE,
+     html = TRUE,
      type = "",
      showConfirmButton = TRUE,
      showCancelButton = FALSE,
