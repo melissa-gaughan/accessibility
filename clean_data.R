@@ -228,6 +228,7 @@ epa_hatch <- block_groups %>%
 rm(project_name)
 rm(test)
 rm(parameters_raw)
+rm(community_assets)
 rm(community_asset_groups)
 library(purrr)
 library(here)

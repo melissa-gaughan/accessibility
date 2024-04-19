@@ -30,7 +30,7 @@ source("load_data.R")
 #4. Make percents have percent labels
 #5. make ggplot table not use sci notation
 #6. ggplot:" hover for data
-#7. in processing, ensure that values are not crazy. dividing by .01 is making distribvutions really off. 
+#7. in processing, ensure that values are not crazy. dividing by .01 is making distributions really off. 
 #UI #####
 
 
@@ -486,7 +486,7 @@ output$test_table <- renderTable(metric_data())
   
    shinyalert(
      title = "King County Metro Transit Accessibility",
-     text = ("<b>Visit the FAQ page!.</b> </br>This app compares the transit accessibility of various community assets using the Fall 2023 King County Metro network (baseline network) and the Metro Connects long range planning transit network (proposed network)."),
+     text = ("<b>Visit the FAQ page!</b> </br>This app compares the transit accessibility of various community assets using the Fall 2023 King County Metro network (baseline network) and the Metro Connects long range planning transit network (proposed network)."),
        
      size = "s", 
      closeOnEsc = TRUE,
