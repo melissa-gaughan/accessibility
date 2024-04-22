@@ -26,11 +26,11 @@ source("load_data.R")
 
 # 1. Grey out asset selection if basdket of goods metrics selected # DONE
 # 2. Grey out jobs if basket of goods is selected # DONE as part of 1
-#3. Table: igf basket of goods is loaded, show table of access for each type of asset at the selected time
-#4. Make percents have percent labels
+#3. Table: if basket of goods is loaded, show table of access for each type of asset at the selected time # show all metrics for associated geoid?
+#4. Make percents have percent labels # this is fixed for hover, still need to work on legends and tables. I think this will need to involve cracking open utils.R
 #5. make ggplot table not use sci notation
 #6. ggplot:" hover for data
-#7. in processing, ensure that values are not crazy. dividing by .01 is making distributions really off. 
+#7. in processing, ensure that values are not crazy. dividing by .01 is making distributions really off. #DONE
 #UI #####
 
 
@@ -264,21 +264,39 @@ observeEvent(asset_reactive(), {
   
      }, ignoreNULL = FALSE)
 
+pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
+
   
   metric_data_sf <- eventReactive(input$recalc,{
-    if(input$geography == 1){ # had to hardcode in the lookupval of block group geoid. need to refactor
+
+    if(input$geography == 1 & input$metric %in% c(1,2, 3,7)){ # had to hardcode in the lookupval of block group geoid. need to refactor #bg, percent metrics
     block_groups <- files$block_groups %>% 
       left_join(metric_data(), by = "Geoid") %>% 
      drop_na(Value) %>%
     filter(Value != 0) %>%
+     mutate(Value = pct_format(Value)) %>% 
       sf::st_as_sf() #added because R was making this a table not a spatial object
-    } else {
+    } else if(input$geography != 1 & !(input$metric %in% c(3,7))){ # qm, count metrics
       quarter_mile <- files$quarter_mile_hex_grid %>% 
         left_join(metric_data(), by = "Geoid") %>% 
       drop_na(Value) %>%
        filter(Value != 0) %>%
         sf::st_as_sf()
       
+    } else if(input$geography == 1 & !(input$metric %in% c(1, 2, 3,7))){ # bg, count metrics
+      block_groups <- files$block_groups %>% 
+        left_join(metric_data(), by = "Geoid") %>% 
+        drop_na(Value) %>%
+        filter(Value != 0) %>%
+      
+        sf::st_as_sf()
+    } else   {    #(input$geography != 1 & !(input$metric %in% c(1, 2, 3,7))){ #qm, percent metrics
+      quarter_mile <- files$quarter_mile_hex_grid %>% 
+        left_join(metric_data(), by = "Geoid") %>% 
+        drop_na(Value) %>%
+        filter(Value != 0) %>%
+        mutate(Value = pct_format(Value)) %>% 
+        sf::st_as_sf()
     } 
   },  ignoreNULL = FALSE)
   
@@ -364,6 +382,7 @@ trip_length_label <- reactive({
   trip_length_choices[trip_length_choices ==input$trip_length] })
 
 output$plot <- renderPlot({ 
+  req(input$recalc)
   ggplot(data = metric_data(), aes(Value)) +
     geom_histogram( bins = 100  )+
     ggthemes::theme_few( ) +
@@ -420,13 +439,13 @@ output$test_table <- renderTable(metric_data())
      clearGroup("Labels") %>% #"Labels", "EPA Overlay", "Routes"
     
       addPolygons( data = metric_data_sf() ,
-                   weight = 2, opacity = 1,
+                   weight = .5, opacity = 1,
                    color = "white",
                   # dashArray = "3",
                    layerId = metric_data_sf()$Geoid,
                    fillOpacity = 0.7 ,
                    highlightOptions = highlightOptions(
-                               weight = 5,
+                               weight = 2,
                                color = "#666",
                                #dashArray = "",
                                fillOpacity = 0.7,

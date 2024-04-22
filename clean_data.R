@@ -34,7 +34,7 @@ block_groups <- block_groups_raw %>%
 
 rm(block_groups_raw)
 
-load(file =here::here( "input","route_and_block_group_equity_data.RDS"))
+load(file =here::here( "input","route_and_block_group_equity_data_241.RDS"))
 
 block_group_need_scores <- block_group_need_scores %>% 
   mutate(Geoid = as.numeric(geoid))
@@ -130,7 +130,7 @@ lookup_table_asset_group <- tibble(assettype= unique(community_asset_groups$asse
 
 
 #  metrics #####
-network_data <-  read_csv(here::here( "input",paste0("summary_comparison_233_mc_12PM.csv"))) %>% 
+network_data <-  read_csv(here::here( "input",paste0("summary_comparison_233_mc.csv"))) %>% 
 rename(geoid = GEO_ID_GRP) %>% 
   select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
   pivot_longer(cols = !c(geoid:geography), 
@@ -152,8 +152,8 @@ rename(geoid = GEO_ID_GRP) %>%
 
 
 
-network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_233_mc_12PM.csv"))) %>% 
-  select(-c( percentile, cutoff, run_id, cutoffs,departure_datetime_baseline, departure_datetime_proposed )) %>% 
+network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_233_mc.csv"))) %>% 
+  select(-c( percentile, cutoff, run_id, cutoffs,departure_datetime_baseline, departure_datetime_proposed, geometry_baseline, geometry_proposed, id_baseline, id_proposed )) %>% 
   mutate(assettype  = stringr::str_replace_all(assettype, "_", " ")) %>% 
   mutate(assettype = stringr::str_to_title(assettype)) %>% 
   rename(geoid = GEO_ID_GRP) %>% 
@@ -176,6 +176,12 @@ network_data_details <- read_csv(here::here( "input", paste0("asset_group_compar
   mutate(Metric = stringr::str_to_title(Metric))
 
 unique(network_data_details$Metric)
+unique(network_data_details$assettype)
+unique(network_data_details$lookup_asset_group)
+
+na_check <- network_data_details %>% 
+  filter(is.na(lookup_asset_group)) %>% 
+  distinct(assettype)
   
 #produce lookup table of Metrics last to merge two pivoted tables together
   
@@ -227,6 +233,7 @@ epa_hatch <- block_groups %>%
 #export data objects #####
 rm(project_name)
 rm(test)
+rm(na_check)
 rm(parameters_raw)
 rm(community_assets)
 rm(community_asset_groups)
