@@ -18,6 +18,7 @@ library(rsconnect)
 library(here)
 library(leafem)
 library(shinyalert)
+library(plotly)
 # LOAD IN DATA ####
 source("utils.R")
 source("load_data.R")
@@ -114,7 +115,7 @@ tabItems(
            box(title = "Distribution of County-Wide Accessibility",
                status = "primary", collapsible = TRUE,
              height = "100%",width = NULL, solidHeader = TRUE,            
-              plotOutput("plot" ) 
+              plotlyOutput("plot" ) 
              )), 
   column(width = 12, 
          box(title = "Details Table (click on map to populate)",
@@ -160,6 +161,7 @@ sidebar =  dashboardSidebar(
    )),
   body
 )
+
 # SERVER#####
 server <- function(input, output) {
  
@@ -351,8 +353,14 @@ metric_data_detail <- reactive({
       if(is.null(click_county())) {
         NULL    # Not filtered
      } else {
-        metric_data() %>% filter( Geoid==click_county()) %>% 
-         select(c(Geoid, `Start Time`, `Day Type`, `Max Trip Duration`, 
+       files$network_data_details %>%  #metric data is already set to a sepcific table--either basker of goods or details
+         filter( Geoid==click_county()) %>% 
+         filter(#`Lookup Metric` ==   input$metric & #filter by asset here
+                        `Lookup Start Time` == input$start_time &
+                        `Lookup Day Type` == input$day_type &
+                        `Lookup Geography`  == input$geography &
+                        `Lookup Max Trip Duration` == input$trip_length ) %>% 
+         select(c(Geoid,  Assettype, `Start Time`, `Day Type`, `Max Trip Duration`, 
                   `Geography`, `Metric`, `Value`))
 }
 
@@ -381,21 +389,33 @@ day_type_label <- reactive({
 trip_length_label <- reactive({
   trip_length_choices[trip_length_choices ==input$trip_length] })
 
-output$plot <- renderPlot({ 
-  req(input$recalc)
-  ggplot(data = metric_data(), aes(Value)) +
-    geom_histogram( bins = 100  )+
-    ggthemes::theme_few( ) +
-    labs(title = "Distribution of County-Wide Accessibility",
-         subtitle = paste0( names(metric_label_plot()), " (", names(geography_label()), " at ", names(start_time_label()), " on ", names(day_type_label()),", ", names(trip_length_label()), " minute max trip length)" )) +
-    xlab( names(metric_label_plot())) +
-    ylab ("Count of Geographies")+
-    theme(
-      plot.title = ggtext::element_markdown(), 
-      plot.subtitle =  ggtext::element_markdown()
-    )
+ observeEvent(input$recalc, {
+   
+   output$plot <-renderPlotly({ 
+      plot_ly(
+        x= metric_data()$Value, 
+        type = "histogram", 
+        alpha = .8
+      )%>%
+       layout(title = paste0( names(metric_label_plot()), " (", names(geography_label()), " at ", names(start_time_label()), " on ", names(day_type_label()),", ", names(trip_length_label()), " minute max trip length)" ), 
+              xaxis = list(title = names(metric_label_plot()),
+                           zerolinecolor = '#ffff',
+                           zerolinewidth = 2,
+                           gridcolor = 'ffff'),
+              yaxis = list(title = "Count of Geographies",
+                           zerolinecolor = '#ffff',
+                           zerolinewidth = 2,
+                           gridcolor = 'ffff'),
+              plot_bgcolor='#e5ecf6')
+
+   
+       
+     })  
   
-  })  
+},ignoreNULL = FALSE)
+  
+  
+  
 output$click_info <- renderTable(metric_data_detail())
 
 output$test_table <- renderTable(metric_data())
