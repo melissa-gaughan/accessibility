@@ -50,3 +50,7 @@ rsconnect/
 
 #input files
 input/
+
+#raw data (exclude from Shiny)
+
+raw_data/

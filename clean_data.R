@@ -6,7 +6,7 @@ library(sf)
 library(gg.layers)
 #library(cartography)
 library(here)
-#project_name <- "Lynnwood_Link_Accessibility"
+project_name <- "SLC_P2"
 # LOAD IN DATA ####
 block_groups_raw <- sf::read_sf(here::here("input", "2020_block_groups", "blkgrp20_shore.shp")) %>% 
   mutate(Geoid = as.numeric(GEO_ID_GRP))
@@ -34,7 +34,7 @@ block_groups <- block_groups_raw %>%
 
 rm(block_groups_raw)
 
-load(file =here::here( "input","route_and_block_group_equity_data_241.RDS"))
+load(file = here::here( "input","route_and_block_group_equity_data_243.RDS"))
 
 block_group_need_scores <- block_group_need_scores %>% 
   mutate(Geoid = as.numeric(geoid))
@@ -61,7 +61,7 @@ parks <- read_sf(here::here("input", "KCParkAccess.gdb"), layer = "KCParkAccessP
          point_y, year, Shape, asset_group) %>% 
   distinct(address, .keep_all = T)
 
-community_asset_groups <- read_csv("input/community_asset_groups.csv") %>% 
+community_asset_groups <- read_csv(here::here("input", "community_asset_groups.csv")) %>% 
   select(-type)
 # load and clean community assets. Join to hex dataframe
 community_assets <-sf::read_sf(here::here("input", "CommunityAssets2023.gdb"), 
@@ -93,8 +93,8 @@ rm(parks)
 #   rmapshaper::ms_simplify(keep = .2)
 
 
-parameters_raw <- read_csv("input/input_parameters_all_days_233.csv") %>% 
-  mutate(departure_datetime = as.POSIXct(departure_datetime))
+parameters_raw <- read_csv(here::here("input", paste0("input_parameters_all_days_", project_name, ".csv"))) %>% 
+  mutate(departure_datetime = lubridate::ymd_hm(departure_datetime))
 
 
 #create lookup tables
@@ -130,7 +130,7 @@ lookup_table_asset_group <- tibble(assettype= unique(community_asset_groups$asse
 
 
 #  metrics #####
-network_data <-  read_csv(here::here( "input",paste0("summary_comparison_233_mc.csv"))) %>% 
+network_data <-  read_csv(here::here( "input",paste0("summary_comparison_", project_name, ".csv"))) %>% 
 rename(geoid = GEO_ID_GRP) %>% 
   select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
   pivot_longer(cols = !c(geoid:geography), 
@@ -152,8 +152,8 @@ rename(geoid = GEO_ID_GRP) %>%
 
 
 
-network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_233_mc.csv"))) %>% 
-  select(-c( percentile, cutoff, run_id, cutoffs,departure_datetime_baseline, departure_datetime_proposed, geometry_baseline, geometry_proposed, id_baseline, id_proposed )) %>% 
+network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_", project_name, ".csv"))) %>% 
+  select(-c( percentile, cutoff, run_id, cutoffs,departure_datetime_baseline, departure_datetime_proposed,id_baseline, id_proposed )) %>% # geometry_baseline, geometry_proposed, 
   mutate(assettype  = stringr::str_replace_all(assettype, "_", " ")) %>% 
   mutate(assettype = stringr::str_to_title(assettype)) %>% 
   rename(geoid = GEO_ID_GRP) %>% 
@@ -235,7 +235,7 @@ rm(project_name)
 rm(test)
 rm(na_check)
 rm(parameters_raw)
-rm(community_assets)
+#rm(community_assets) adding in community assets to RDS to try adding them to app
 rm(community_asset_groups)
 library(purrr)
 library(here)

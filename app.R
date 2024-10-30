@@ -27,11 +27,14 @@ source("load_data.R")
 
 # 1. Grey out asset selection if basdket of goods metrics selected # DONE
 # 2. Grey out jobs if basket of goods is selected # DONE as part of 1
-#3. Table: if basket of goods is loaded, show table of access for each type of asset at the selected time # show all metrics for associated geoid?
+#3. Table: if basket of goods is loaded, show table of access for each type of asset at the selected time # show all metrics for associated geoid? #DONE
 #4. Make percents have percent labels # this is fixed for hover, still need to work on legends and tables. I think this will need to involve cracking open utils.R
 #5. make ggplot table not use sci notation
-#6. ggplot:" hover for data
+#6. ggplot:" hover for data #DONE
 #7. in processing, ensure that values are not crazy. dividing by .01 is making distributions really off. #DONE
+#8 change plotly title to be smaller
+#9 Make display table filterable, sortable
+#10. Remove character values from data tables to reduce file size as much as possible. Check that lookups are being used consistently 10.29.24
 #UI #####
 
 
@@ -107,7 +110,7 @@ tabItems(
            height = "100%",   status = "primary",
              id = "map_container",
            width = NULL, solidHeader = TRUE,
-     
+           collapsible = TRUE,
             # tableOutput("test_table" ) 
             leaflet::leafletOutput("metric_map")#, 
                            )),
@@ -122,7 +125,7 @@ tabItems(
              status = "primary",
            height = "100%",width = NULL, solidHeader = TRUE,
            collapsible = TRUE,
-          tableOutput("table" )
+          DT::dataTableOutput("table" )
              )
          ))
           
@@ -330,17 +333,23 @@ pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
       arrange(metric_color_label)
   })
 
+#event_recalc <- reactiveVal(update_recalc = NULL)
 
 
 click_county <- reactiveVal()
 
 observeEvent(input$metric_map_shape_click, {
   # Capture the info of the clicked polygon
-  if(!is.null(click_county()) && click_county() == input$metric_map_shape_click$id)
+  if(!is.null(click_county()) && click_county() == input$metric_map_shape_click$id )
     click_county(NULL)     # Reset filter
   else
     click_county(input$metric_map_shape_click$id)
-  print(click_county)
+  #print(click_county)
+})
+
+observeEvent(input$recalc, {
+click_county(NULL)
+  
 })
 
 
@@ -358,21 +367,28 @@ metric_data_detail <- reactive({
          filter(#`Lookup Metric` ==   input$metric & #filter by asset here
                         `Lookup Start Time` == input$start_time &
                         `Lookup Day Type` == input$day_type &
-                        `Lookup Geography`  == input$geography &
+                       # `Lookup Geography`  == input$geography &
                         `Lookup Max Trip Duration` == input$trip_length ) %>% 
-         select(c(Geoid,  Assettype, `Start Time`, `Day Type`, `Max Trip Duration`, 
-                  `Geography`, `Metric`, `Value`))
+        
+         select(c(Assettype,  `Metric`, `Value`)) %>% 
+         pivot_wider(id_cols = Assettype, names_from = Metric, values_from = Value) %>% 
+         arrange(desc(`Percent Change In Asset Count`))
 }
 
 
 
 })
+#https://stackoverflow.com/questions/46732849/shiny-detect-a-change-in-input-with-a-warning-in-ui-r
 
-
-
-output$table <- renderTable({
-  metric_data_detail()
-  })
+observeEvent(input$recalc, {
+  
+output$table <- DT::renderDataTable(
+  metric_data_detail(), 
+  options = list(
+  
+  )
+)
+})
 
 metric_label_plot <- reactive({
   metric_choices[metric_choices ==input$metric] })
@@ -397,7 +413,10 @@ trip_length_label <- reactive({
         type = "histogram", 
         alpha = .8
       )%>%
-       layout(title = paste0( names(metric_label_plot()), " (", names(geography_label()), " at ", names(start_time_label()), " on ", names(day_type_label()),", ", names(trip_length_label()), " minute max trip length)" ), 
+       layout(title =paste0( names(metric_label_plot()), "<br><sup>", names(geography_label()), " at ", #use html to create superscript subtitle. 
+                                        names(start_time_label()), " on ", names(day_type_label()),", ",
+                                        names(trip_length_label()), " minute max trip length</sup>" ), 
+             
               xaxis = list(title = names(metric_label_plot()),
                            zerolinecolor = '#ffff',
                            zerolinewidth = 2,
@@ -416,9 +435,9 @@ trip_length_label <- reactive({
   
   
   
-output$click_info <- renderTable(metric_data_detail())
+#output$click_info <- renderTable(metric_data_detail())
 
-output$test_table <- renderTable(metric_data())
+#output$test_table <- renderTable(metric_data())
   # Map reactives ####
   output$metric_map <- renderLeaflet({
     # Use leaflet() here, and only include aspects of the map that
@@ -525,7 +544,7 @@ output$test_table <- renderTable(metric_data())
   
    shinyalert(
      title = "King County Metro Transit Accessibility",
-     text = ("<b>Visit the FAQ page!</b> </br>This app compares the transit accessibility of various community assets using the Fall 2023 King County Metro network (baseline network) and the Metro Connects long range planning transit network (proposed network)."),
+     text = ("<b>Visit the FAQ page!</b> </br>This app compares the transit accessibility of various community assets using the Fall 2024 King County Metro network (baseline network) and the South Link Connections Phase 2 Network (proposed network)."),
        
      size = "s", 
      closeOnEsc = TRUE,
