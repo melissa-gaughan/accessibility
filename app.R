@@ -57,11 +57,11 @@ tabItems(
              solidHeader = TRUE,
              status = "warning", 
              collapsible = T,
-              column(width = 2, 
+              column(width = 3, 
                      strong("How many places can someone get to using transit in a certain about of time?"), 
                      p("Use the filters to select a day, start time, trip length, geography and metric. If you select a Basket of Goods metric, you do not need to select an asset type."), 
                      p("Learn more about the analysis in the FAQ")),
-             column(width = 5,
+             column(width = 3,
            selectInput("metric",
                        "Metric",
                        choices = metric_choices, 
@@ -71,14 +71,25 @@ tabItems(
                        "Asset Type",
                        choices = NULL, 
                        multiple = FALSE), 
-           selectInput("geography", "Geography",
-                       choices = geography_choices,
-                       selected = "quarter_mile_hexagon")
            
-         
-         
+           actionButton("recalc", "Load", class = "btn btn-warning")
+           ), 
+           column(width = 3, 
+                  selectInput("geography", "Geography",
+                              choices = geography_choices,
+                              selected = 2),
+           selectInput("network",
+                       "Network",
+                       choices = c( "Baseline", "Proposal"), 
+                       multiple = FALSE, 
+                       selected = "Proposal" ), 
+           
+           selectInput("routes",
+                       "Routes",
+                       choices = NULL, 
+                       multiple = TRUE)
          ),
-  column(width = 5,
+  column(width = 3,
         selectInput("day_type",
                     "Day",
                     choices = day_type_choices, 
@@ -95,9 +106,7 @@ tabItems(
                     "Max Trip Length",
                     choices = trip_length_choices, 
                     multiple = FALSE, 
-                    selected = 45), 
-       
-        actionButton("recalc", "Load", class = "btn btn-warning")
+                    selected = 45)
         
    )
    )
@@ -150,7 +159,52 @@ tabItem( "Notes",
                  collapsible = F,
         
           includeMarkdown("faq/help.rmd")))
-     )))))
+     ))), 
+tabItem( "Summary",
+         tags$head(
+           tags$script(src = "https://code.jquery.com/ui/1.12.1/jquery-ui.js"),
+           tags$link(rel = "stylesheet", href = "resizableColumns.css"),
+           tags$script(src = "resizableColumns.js")
+         ),
+         
+         tags$div(
+           id = "layout",
+           fluidRow(
+             
+             #jqui_resizable(
+             box(title = "Study Area Summaries", 
+                 width = 12, 
+                 solidHeader = TRUE,
+                 status = "warning", 
+                 collapsible = T,
+                 column(width = 4, 
+                        strong("How has community asset and worksite access changed for the study area?"), 
+                        p("Select a summary table to view. All results are filtered to only the project study area."), 
+                        p("Learn more about the analysis in the FAQ.")),
+                 column(width = 8,
+                        selectInput("summary_table",
+                                    "Summary Table",
+                                    choices = c("Basket of Goods", 
+                                                "Basket of Goods By Time Period",
+                                                "Community Asset Access", 
+                                                "Worksite Access", 
+                                                "Worksite Access By Time Period"),
+                                    multiple = FALSE, 
+                                    selected = "Basket of Goods")
+         
+         ), 
+         column(width = 12, 
+                box(title = "Summary Table (study area results only)",
+                    status = "primary",
+                    height = "100%",width = NULL, solidHeader = TRUE,
+                    collapsible = TRUE,
+                    DT::dataTableOutput("summary_table" )
+                )
+             )
+
+
+
+))) )))
 
 
 
@@ -159,7 +213,8 @@ ui <- dashboardPage(
 sidebar =  dashboardSidebar(
   sidebarMenu( menuItem(
     "Map", tabName = "Map" ), 
-  menuItem( "FAQ", tabName = "Notes")
+  menuItem( "FAQ", tabName = "Notes"), 
+  menuItem("Summary", tabName = "Summary")
      
    )),
   body
@@ -167,6 +222,70 @@ sidebar =  dashboardSidebar(
 
 # SERVER#####
 server <- function(input, output) {
+  
+  # create reactive for summary tables
+  summary_table_reactive <- reactive({
+    
+    if(input$summary_table == "Basket of Goods"){
+      summary_table_data <- files$summary_table_bog
+    } else if(  input$summary_table ==  "Basket of Goods By Time Period"){
+      summary_table_data <- files$summary_table_bog_time
+    }else if(  input$summary_table ==  "Community Asset Access"){
+      summary_table_data <- files$summary_table_assets
+     } else if(  input$summary_table ==   "Worksite Access"){
+        summary_table_data <- files$summary_table_jobs
+     } else if(  input$summary_table ==    "Worksite Access By Time Period"){
+       summary_table_data <- files$summary_table_jobs_time
+     } else {
+       summary_table_data <- files$summary_table_bog
+     }
+
+   
+  })
+ 
+  
+   #handle route reactivity####
+  
+  #network selections
+  network<- reactive({
+    if (input$network == "Baseline"){
+      network <-  files$baseline_network 
+    } else if(input$network == "Proposal"){
+      network <- files$proposed_network
+    } else{
+      network <- files$baseline_network 
+    }
+    
+  })
+  
+  
+  # update routes to correspond to network selected
+  observeEvent(network(), {
+    #req(input$network)
+    #freezeReactiveValue(input, "routes")
+    choices <- unique(network()$route_short_name)
+    updateSelectInput( inputId = "routes", choices = choices)
+  })
+  
+  
+  conditional <- function(condition, success){
+    if(condition) success else TRUE
+  }  
+  #handle route selections. Add in reset button?
+  routes <- eventReactive(input$recalc,{
+    
+    #files$baseline_network
+     if (input$network == "Baseline"){
+      route <- files$baseline_network  %>%
+        filter( conditional(isTruthy(input$routes), route_short_name %in% input$routes )) %>%
+        sf::st_as_sf()
+    } else if(input$network == "Proposal"){
+      route <- files$proposed_network %>%
+        filter( conditional(isTruthy(input$routes),route_short_name %in% input$routes ))%>%
+        sf::st_as_sf()
+    }
+    
+  })
  
 
    #MAP FUNCTIONS #####
@@ -175,6 +294,12 @@ epa_hatch_reactive <- reactive({
   epa <- files$epa_hatch %>% 
     sf::st_as_sf()
 })
+  
+  
+study_area_reactive <- reactive({
+    study_area <- files$study_area %>% 
+      sf::st_as_sf()
+  })
 
 asset_reactive<- reactive({
   if(input$metric %in% unique(files$network_data_details$`Lookup Metric`)){
@@ -306,23 +431,23 @@ pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
   },  ignoreNULL = FALSE)
   
 # responsive labels for multiple geos
-  metric_data_labels <- eventReactive(input$recalc,{
-    
-    
-    if(input$geography == 1){ # had to hardcode in the lookupval of block group geoid. need to refactor
-    files$block_group_centroids %>%
-      left_join(metric_data()) %>%
-      drop_na(Value) %>%
-      filter(Value != 0) %>%
-      sf::st_as_sf() #added because R was making this a table not a spatial object
-      } else {
-        files$quarter_mile_hex_grid %>% 
-          left_join(metric_data()) %>%
-          drop_na(Value) %>%
-          filter(Value != 0) %>%
-          sf::st_as_sf()
-      } 
-  },  ignoreNULL = FALSE)
+  # metric_data_labels <- eventReactive(input$recalc,{
+  #   
+  #   
+  #   if(input$geography == 1){ # had to hardcode in the lookupval of block group geoid. need to refactor
+  #   files$block_group_centroids %>%
+  #     left_join(metric_data()) %>%
+  #     drop_na(Value) %>%
+  #     filter(Value != 0) %>%
+  #     sf::st_as_sf() #added because R was making this a table not a spatial object
+  #     } else {
+  #       files$quarter_mile_hex_grid %>% 
+  #         left_join(metric_data()) %>%
+  #         drop_na(Value) %>%
+  #         filter(Value != 0) %>%
+  #         sf::st_as_sf()
+  #     } 
+  # },  ignoreNULL = FALSE)
   
   #recalc legend to respond to new breaks
   
@@ -388,6 +513,16 @@ output$table <- DT::renderDataTable(
   
   )
 )
+})
+
+observeEvent(input$summary_table, {
+  
+  output$summary_table <- DT::renderDataTable(
+    summary_table_reactive(), 
+    options = list(
+      
+    )
+  )
 })
 
 metric_label_plot <- reactive({
@@ -456,28 +591,26 @@ trip_length_label <- reactive({
                        width = 80) %>% 
       leaflet::addScaleBar(position = "topright")   %>% 
       addLayersControl(
-        overlayGroups = c( "EPA Overlay", "Labels"),
+        overlayGroups = c( "EPA Overlay",  "Study Area"), #"Labels",
         options = layersControlOptions(collapsed = FALSE), 
         position = "topleft"
       ) %>% 
-      hideGroup(c("EPA Overlay",  "Labels") )
+      hideGroup(c("EPA Overlay",  "Study Area") ) #"Labels", 
   })
   
  metric_label <- eventReactive(input$recalc, {
-  test <-  files$lookup_table_metric %>% 
+  test <-  files$lookup_table_metric %>%
      filter(lookup_metric == input$metric)
   out <- as.vector(test$Metric)
-   
- }
-                              ) 
+
+ }) 
   
    observeEvent(input$recalc, {
-   
-   proxy <- leafletProxy("metric_map")   %>%
-     clearShapes() %>%
-     clearGroup("Labels") %>% #"Labels", "EPA Overlay", "Routes"
-    
-      addPolygons( data = metric_data_sf() ,
+     if(!isTruthy(input$routes)){
+         proxy <- leafletProxy("metric_map")   %>%
+          clearShapes() %>%
+          clearGroup("Routes") %>% #"Labels", "EPA Overlay", 
+          addPolygons( data = metric_data_sf() ,
                    weight = .5, opacity = 1,
                    color = "white",
                   # dashArray = "3",
@@ -505,22 +638,85 @@ trip_length_label <- reactive({
         weight = 0.6,
         group = "EPA Overlay"
       )  %>%
-     leafem::addStaticLabels(
-    # addLabelOnlyMarkers(
-                   data = metric_data_labels(),
-                  # lat = metric_data_labels()$Y,
-                    #lng = metric_data_labels()$X,
-                    label = metric_data_labels()$Value,
-                     group = "Labels") %>%
+     addPolygons(
+       data = study_area_reactive(), 
+       fill = FALSE, 
+       color = "black", 
+       weight = 2,
+       dashArray = 3,
+       group = "Study Area"
+     ) %>% 
+    
+    # # addLabelOnlyMarkers(
+    #                data = metric_data_labels(),
+    #               # lat = metric_data_labels()$Y,
+    #                 #lng = metric_data_labels()$X,
+    #                 label = metric_data_labels()$Value,
+    #                  group = "Labels") %>%
       addLayersControl(
-        overlayGroups = c( "EPA Overlay", "Labels"), #
+        overlayGroups = c( "EPA Overlay", "Study Area"), #"Labels", 
         options = layersControlOptions(collapsed = FALSE), 
         position = "topleft"
       ) #%>%
 
     # hideGroup(c("EPA Overlay", "Routes") ) #
      # myVariable <<- proxy
-  } ,ignoreNULL = FALSE)
+     } else {
+       proxy <- leafletProxy("metric_map")   %>%
+         clearShapes() %>%
+         clearGroup("Routes") %>% #"Labels", "EPA Overlay", 
+         
+         addPolygons( data = metric_data_sf() ,
+                      weight = .5, opacity = 1,
+                      color = "white",
+                      # dashArray = "3",
+                      layerId = metric_data_sf()$Geoid,
+                      fillOpacity = 0.7 ,
+                      highlightOptions = highlightOptions(
+                        weight = 2,
+                        color = "#666",
+                        #dashArray = "",
+                        fillOpacity = 0.7,
+                        bringToFront = FALSE) ,   #)#,
+                      label = ~paste0(Value,""),
+                      labelOptions = labelOptions(
+                        style = list("font-weight" = "normal", padding = "3px 8px"),
+                        textsize = "15px",
+                        direction = "auto"),
+                      fillColor = ~metric_data_sf()$metric_color_group,
+                      popup = ~paste0(metric_label(), ": ", Value
+                                      
+                      )
+         ) %>%
+         addPolylines(
+           data = epa_hatch_reactive(),
+           color = "black",
+           weight = 0.6,
+           group = "EPA Overlay"
+         )  %>%
+         addPolygons(
+           data = study_area_reactive(), 
+           fill = FALSE, 
+           color = "black", 
+           weight = 2,
+           dashArray = 3,
+           group = "Study Area"
+         ) %>% 
+         addPolylines(
+           data = routes(),
+           color = "black",
+           weight = 3 ,
+           group = "Routes",
+           label = ~route_short_name,
+           popup = ~paste0("<br>Route: ", route_short_name  ) ) %>%
+       addLayersControl(
+         overlayGroups = c( "EPA Overlay", "Study Area"), #"Labels", 
+         options = layersControlOptions(collapsed = FALSE), 
+         position = "topleft"
+       )
+      
+  }
+  },ignoreNULL = FALSE)
 
 
   
@@ -539,7 +735,6 @@ trip_length_label <- reactive({
    }, ignoreNULL = FALSE)
    
    
-
 
   
    shinyalert(
