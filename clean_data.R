@@ -1,4 +1,4 @@
-
+options(scipen=999)
 #library(shinydashboardPlus)
 library(tidyverse)
 
@@ -8,7 +8,7 @@ library(gg.layers)
 library(here)
 project_name <- "SLC_P2"
 # LOAD IN DATA ####
-block_groups_raw <- sf::read_sf(here::here("input", "2020_block_groups", "blkgrp20_shore.shp")) %>% 
+block_groups_raw <- sf::read_sf(here::here("raw_data", "2020_block_groups", "blkgrp20_shore.shp")) %>% 
   mutate(Geoid = as.numeric(GEO_ID_GRP))
 
 #block_group_test <- block_groups_raw[block_groups_raw$geoid=="530330323161",]
@@ -34,7 +34,7 @@ block_groups <- block_groups_raw %>%
 
 rm(block_groups_raw)
 
-load(file = here::here( "input","route_and_block_group_equity_data_243.RDS"))
+load(file = here::here( "raw_data","route_and_block_group_equity_data_243.RDS"))
 
 block_group_need_scores <- block_group_need_scores %>% 
   mutate(Geoid = as.numeric(geoid))
@@ -43,12 +43,12 @@ rm(percent_stops_in_equity_bg_no_geo)
 
 #hex grids
  
-quarter_mile_hex_grid <- sf::read_sf(here::here("input", "hex_grids", "quarter_mile_hex_grid.shp"))%>% 
+quarter_mile_hex_grid <- sf::read_sf(here::here("raw_data", "hex_grids", "quarter_mile_hex_grid.shp"))%>% 
   mutate(Geoid = as.numeric(rowid))%>% 
   st_transform(4326) %>% 
   rmapshaper::ms_simplify(keep = .05)
 
-parks <- read_sf(here::here("input", "KCParkAccess.gdb"), layer = "KCParkAccessPoints")%>%
+parks <- read_sf(here::here("raw_data", "KCParkAccess.gdb"), layer = "KCParkAccessPoints")%>%
   st_transform(2926) %>% 
   janitor::clean_names() %>% 
   mutate(name = sitename, 
@@ -61,10 +61,10 @@ parks <- read_sf(here::here("input", "KCParkAccess.gdb"), layer = "KCParkAccessP
          point_y, year, Shape, asset_group) %>% 
   distinct(address, .keep_all = T)
 
-community_asset_groups <- read_csv(here::here("input", "community_asset_groups.csv")) %>% 
+community_asset_groups <- read_csv(here::here("raw_data", "community_asset_groups.csv")) %>% 
   select(-type)
 # load and clean community assets. Join to hex dataframe
-community_assets <-sf::read_sf(here::here("input", "CommunityAssets2023.gdb"), 
+community_assets <-sf::read_sf(here::here("raw_data", "CommunityAssets2023.gdb"), 
                                layer = "CommunityAssets_January2023") %>%
   st_transform(2926) %>% 
   janitor::clean_names() %>% 
@@ -74,26 +74,39 @@ community_assets <-sf::read_sf(here::here("input", "CommunityAssets2023.gdb"),
 rm(parks)
 
 #route shapefiles ####
-# proposed_network <- sf::read_sf("input/scenario/planner_var_shape.shp") %>% 
-#   rename(route_short_name = VAR_ROUTE, 
-#          variant = VAR_IDENT, 
-#          direction = VAR_DIREC, 
-#          description = VAR_DESCR) %>% 
-#   st_set_crs(4326) %>% 
-#   st_transform(4326) %>% 
-#   rmapshaper::ms_simplify(keep = .2)
-# 
-# baseline_network <- sf::read_sf("input/baseline/planner_var_shape.shp") %>% 
-#   rename(route_short_name = VAR_ROUTE, 
-#          variant = VAR_IDENT, 
-#          direction = VAR_DIREC, 
-#          description = VAR_DESCR)%>% 
-#   st_set_crs(4326) %>% 
-#   st_transform(4326)%>% 
-#   rmapshaper::ms_simplify(keep = .2)
+
+excluded_routes <- c('629', '634', '635', '636', '641', '643',
+                     '650', '654', '656', '657', '696', '697', 
+                     '699', '715', '716', '717', '718', '719', 
+                     '720', '722', '723', '724', '725', '730', 
+                     '732', '733', '772', '779', '786', '791', 
+                     '794', '795', '797', '851', '852', '853', 
+                     '854', '855', '856', '857', '858', '859', '
+                     862', '863', '880', '881', '882', '9999', 
+                     '627', '630', '893', '895', 
+                     '981', '982', '986', '987', '988', '989')
+proposed_network <- sf::read_sf("raw_data/scenario/wk_allplanner_var_shape.shp") %>%
+  rename(route_short_name = VAR_ROUTE,
+         variant = VAR_IDENT,
+         direction = VAR_DIREC,
+         description = VAR_DESCR) %>%
+  filter(!route_short_name %in% excluded_routes ) %>% 
+  st_set_crs(4326) %>%
+  st_transform(4326) %>%
+  rmapshaper::ms_simplify(keep = .2)
+
+baseline_network <- sf::read_sf("raw_data/baseline/simplified_routes_243.shp") %>%
+  rename(route_short_name = RTE_NAME,
+        # variant = VAR_IDENT, #not in simplified routes
+         direction = DIR_CODE #, #IN OUT vs I/O may need to update code later?
+         #description = VAR_DESCR
+         )%>%
+  #st_set_crs(4326) %>%
+  st_transform(4326)%>%
+  rmapshaper::ms_simplify(keep = .2)
 
 
-parameters_raw <- read_csv(here::here("input", paste0("input_parameters_all_days_", project_name, ".csv"))) %>% 
+parameters_raw <- read_csv(here::here("raw_data", paste0("input_parameters_all_days_", project_name, ".csv"))) %>% 
   mutate(departure_datetime = lubridate::ymd_hm(departure_datetime))
 
 
@@ -130,7 +143,7 @@ lookup_table_asset_group <- tibble(assettype= unique(community_asset_groups$asse
 
 
 #  metrics #####
-network_data <-  read_csv(here::here( "input",paste0("summary_comparison_", project_name, ".csv"))) %>% 
+network_data <-  read_csv(here::here( "raw_data",paste0("summary_comparison_", project_name, ".csv"))) %>% 
 rename(geoid = GEO_ID_GRP) %>% 
   select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
   pivot_longer(cols = !c(geoid:geography), 
@@ -138,6 +151,7 @@ rename(geoid = GEO_ID_GRP) %>%
                values_to = "Value") %>% 
   filter(!(Value == .001)) %>%  #remove values that were added as zero replacements for percentages
   mutate(Value =  round(Value*100, 2)) %>% #convert basket of goods score from 0-1 scale to 0-100
+  mutate(start_time = factor(start_time, levels = c("7 AM", "12 PM", "7 PM", "9 PM"))) %>% 
   mutate(geography  = stringr::str_replace_all(geography, "_", " ")) %>% 
   mutate(geography = stringr::str_to_title(geography)) %>% 
   mutate(day_type  = stringr::str_replace_all(day_type, "_", " ")) %>% 
@@ -152,7 +166,7 @@ rename(geoid = GEO_ID_GRP) %>%
 
 
 
-network_data_details <- read_csv(here::here( "input", paste0("asset_group_comparison_", project_name, ".csv"))) %>% 
+network_data_details <- read_csv(here::here( "raw_data", paste0("asset_group_comparison_", project_name, ".csv"))) %>% 
   select(-c( percentile, cutoff, run_id, cutoffs,departure_datetime_baseline, departure_datetime_proposed,id_baseline, id_proposed )) %>% # geometry_baseline, geometry_proposed, 
   mutate(assettype  = stringr::str_replace_all(assettype, "_", " ")) %>% 
   mutate(assettype = stringr::str_to_title(assettype)) %>% 
@@ -167,6 +181,7 @@ network_data_details <- read_csv(here::here( "input", paste0("asset_group_compar
   mutate(geography = stringr::str_to_title(geography)) %>% 
   mutate(day_type  = stringr::str_replace_all(day_type, "_", " ")) %>% 
   mutate(day_type = stringr::str_to_title(day_type)) %>% 
+  mutate(start_time = factor(start_time, levels = c("7 AM", "12 PM", "7 PM", "9 PM"))) %>% 
   left_join(lookup_table_asset_group) %>% 
   left_join(lookup_table_day_type) %>% 
   left_join(lookup_table_geography) %>% 
@@ -182,6 +197,87 @@ unique(network_data_details$lookup_asset_group)
 na_check <- network_data_details %>% 
   filter(is.na(lookup_asset_group)) %>% 
   distinct(assettype)
+
+study_area <- sf::read_sf(here::here("raw_data", "study_area", "slc_ph2.shp")) %>% 
+  st_transform(2926)
+
+quarter_mile_hex_grid_2926 <- sf::read_sf(here::here("raw_data", "hex_grids", "quarter_mile_hex_grid.shp"))%>% 
+  mutate(geoid = as.numeric(rowid)) %>% 
+  st_transform(2926) %>% 
+  st_filter( study_area)#putting in more accurate harn for spatial clip operation
+
+summary_table_bog <-   read_csv(here::here( "raw_data",paste0("summary_comparison_", project_name, ".csv"))) %>% 
+  rename(geoid = GEO_ID_GRP) %>% 
+  select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
+  filter(geography  == "quarter_mile_hexagon" & max_trip_duration == 45 & geoid %in% quarter_mile_hex_grid_2926$geoid) %>% 
+  group_by(day_type) %>% 
+  summarise( mean_bog_score_baseline = scales::percent(mean(basket_of_goods_score_baseline, na.rm = T),scale = 100 , accuracy = 0.01), 
+             mean_bog_score_proposed = scales::percent( mean(basket_of_goods_score_proposed, na.rm = T), scale = 100, accuracy = 0.01),
+             mean_bog_score_difference = scales::percent(mean(basket_of_goods_difference, na.rm = T) ,  scale = 100, accuracy = 0.01)) %>% 
+  mutate(day_type = factor(day_type, levels = c("weekday", "saturday", "sunday"))) %>% 
+  arrange(day_type) %>% 
+  mutate(day_type = str_to_title(day_type)) %>% 
+  janitor::clean_names("title")
+
+
+summary_table_bog_time <-   read_csv(here::here( "raw_data",paste0("summary_comparison_", project_name, ".csv"))) %>% 
+  rename(geoid = GEO_ID_GRP) %>% 
+  select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
+  filter(geography  == "quarter_mile_hexagon" & max_trip_duration == 45 & geoid %in% quarter_mile_hex_grid_2926$geoid) %>% 
+  group_by(day_type, start_time) %>% 
+  summarise( mean_bog_score_baseline = scales::percent(mean(basket_of_goods_score_baseline, na.rm = T),scale = 100 , accuracy = 0.01), 
+             mean_bog_score_proposed = scales::percent( mean(basket_of_goods_score_proposed, na.rm = T), scale = 100, accuracy = 0.01),
+             mean_bog_score_difference = scales::percent(mean(basket_of_goods_difference, na.rm = T) ,  scale = 100, accuracy = 0.01)) %>% 
+  mutate(start_time = factor(start_time, levels = c("7 AM", "12 PM", "7 PM", "9 PM"))) %>% 
+  mutate(day_type = factor(day_type, levels = c("weekday", "saturday", "sunday"))) %>% 
+  arrange(day_type, start_time) %>% 
+  mutate(day_type = str_to_title(day_type)) %>% 
+  janitor::clean_names("title")
+
+
+summary_table_assets <- read_csv(here::here( "raw_data", paste0("asset_group_comparison_", project_name, ".csv"))) %>% 
+  rename(geoid = GEO_ID_GRP) %>% 
+  select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
+  filter(geography  == "quarter_mile_hexagon" & max_trip_duration == 45 & geoid %in% quarter_mile_hex_grid_2926$geoid
+         & !(assettype %in% c("low_wage_jobs", "mid_wage_jobs", "high_wage_jobs", "total_jobs")) ) %>% 
+  group_by(day_type, assettype) %>% #$
+  summarise( mean_asset_count_baseline = round(mean(count_baseline, na.rm = T),3), 
+             mean_asset_count_proposed = round(mean(count_proposed, na.rm = T),3),
+             mean_asset_count_difference = round(mean(change_in_asset_count, na.rm = T),3)) %>% 
+  mutate(day_type = factor(day_type, levels = c("weekday", "saturday", "sunday"))) %>% 
+  arrange(day_type, assettype) %>% 
+  mutate(day_type = str_to_title(day_type)) %>% 
+  rename(`Community Asset` = assettype) %>% 
+  mutate(`Community Asset` = str_replace_all(`Community Asset`, "_", " ")) %>% 
+  mutate(`Community Asset`  = str_to_title(`Community Asset`)) %>% 
+  janitor::clean_names("title")
+
+summary_table_jobs <- read_csv(here::here( "raw_data", paste0("asset_group_comparison_", project_name, ".csv"))) %>% 
+  rename(geoid = GEO_ID_GRP) %>% 
+  select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
+  filter(geography  == "quarter_mile_hexagon" & max_trip_duration == 45 & geoid %in% quarter_mile_hex_grid_2926$geoid
+         & (assettype %in% c("low_wage_jobs", "mid_wage_jobs", "high_wage_jobs", "total_jobs")) ) %>% 
+  group_by(day_type, assettype) %>% #$
+  summarise( mean_jobs_count_baseline = round(mean(count_baseline, na.rm = T),0), 
+             mean_jobs_count_proposed = round(mean(count_proposed, na.rm = T),0),
+             mean_jobs_count_difference = round(mean(change_in_asset_count, na.rm = T),0))
+
+summary_table_jobs_time <- read_csv(here::here( "raw_data", paste0("asset_group_comparison_", project_name, ".csv"))) %>% 
+  rename(geoid = GEO_ID_GRP) %>% 
+  select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
+  filter(geography  == "quarter_mile_hexagon" & max_trip_duration == 45 & geoid %in% quarter_mile_hex_grid_2926$geoid
+         & (assettype %in% c("total_jobs")) ) %>% 
+  group_by(day_type, start_time) %>% #$
+  summarise( mean_jobs_count_baseline = round(mean(count_baseline, na.rm = T),0), 
+             mean_jobs_count_proposed = round(mean(count_proposed, na.rm = T),0),
+             mean_jobs_count_difference = round(mean(change_in_asset_count, na.rm = T),0)) %>% 
+  mutate(start_time = factor(start_time, levels = c("7 AM", "12 PM", "7 PM", "9 PM"))) %>% 
+  mutate(day_type = factor(day_type, levels = c("weekday", "saturday", "sunday"))) %>% 
+  arrange(day_type, start_time) %>% 
+  mutate(day_type = str_to_title(day_type)) %>% 
+  janitor::clean_names("title")
+  
+
   
 #produce lookup table of Metrics last to merge two pivoted tables together
   
@@ -237,6 +333,7 @@ rm(na_check)
 rm(parameters_raw)
 #rm(community_assets) adding in community assets to RDS to try adding them to app
 rm(community_asset_groups)
+rm(excluded_routes)
 library(purrr)
 library(here)
 
