@@ -486,7 +486,20 @@ metric_data_detail <- reactive({
 
       if(is.null(click_county())) {
         NULL    # Not filtered
-     } else {
+      } else if(input$metric <=3 | input$asset < 13 ){  #if looking at basket of goods OR non-job assets, remove jobs
+       
+        files$network_data_details %>%  #metric data is already set to a sepcific table--either basker of goods or details
+          filter( Geoid==click_county()) %>% 
+          filter(!(Assettype %in% c("High Wage Jobs", "Mid Wage Jobs", "Low Wage Jobs", "Total Jobs"))) %>% 
+          filter(#`Lookup Metric` ==   input$metric & #filter by asset here
+            `Lookup Start Time` == input$start_time &
+              `Lookup Day Type` == input$day_type &
+              # `Lookup Geography`  == input$geography &
+              `Lookup Max Trip Duration` == input$trip_length ) %>% 
+          select(c(Assettype,  `Metric`, `Value`)) %>% 
+          pivot_wider(id_cols = Assettype, names_from = Metric, values_from = Value) %>% 
+          arrange(desc(`Percent Change In Asset Count`))
+     }  else if (input$asset >= 13) { #filter to ONLY jobs data
        files$network_data_details %>%  #metric data is already set to a sepcific table--either basker of goods or details
          filter( Geoid==click_county()) %>% 
          filter(#`Lookup Metric` ==   input$metric & #filter by asset here
@@ -494,7 +507,7 @@ metric_data_detail <- reactive({
                         `Lookup Day Type` == input$day_type &
                        # `Lookup Geography`  == input$geography &
                         `Lookup Max Trip Duration` == input$trip_length ) %>% 
-        
+         filter((Assettype %in% c("High Wage Jobs", "Mid Wage Jobs", "Low Wage Jobs", "Total Jobs"))) %>% 
          select(c(Assettype,  `Metric`, `Value`)) %>% 
          pivot_wider(id_cols = Assettype, names_from = Metric, values_from = Value) %>% 
          arrange(desc(`Percent Change In Asset Count`))
