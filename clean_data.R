@@ -90,11 +90,12 @@ proposed_network <- sf::read_sf("raw_data/scenario/wk_allplanner_var_shape.shp")
          variant = VAR_IDENT,
          direction = VAR_DIREC,
          description = VAR_DESCR) %>%
+  distinct(route_short_name, .keep_all = T)  %>% 
   filter(!route_short_name %in% excluded_routes ) %>% 
-  st_set_crs(4326) %>%
   st_transform(4326) %>%
-  rmapshaper::ms_simplify(keep = .2)
+  rmapshaper::ms_simplify(keep = .2) 
 
+#mapview::mapview(proposed_network)
 baseline_network <- sf::read_sf("raw_data/baseline/simplified_routes_243.shp") %>%
   rename(route_short_name = RTE_NAME,
         # variant = VAR_IDENT, #not in simplified routes
@@ -211,9 +212,9 @@ summary_table_bog <-   read_csv(here::here( "raw_data",paste0("summary_compariso
   select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
   filter(geography  == "quarter_mile_hexagon" & max_trip_duration == 45 & geoid %in% quarter_mile_hex_grid_2926$geoid) %>% 
   group_by(day_type) %>% 
-  summarise( mean_bog_score_baseline = scales::percent(mean(basket_of_goods_score_baseline, na.rm = T),scale = 100 , accuracy = 0.01), 
-             mean_bog_score_proposed = scales::percent( mean(basket_of_goods_score_proposed, na.rm = T), scale = 100, accuracy = 0.01),
-             mean_bog_score_difference = scales::percent(mean(basket_of_goods_difference, na.rm = T) ,  scale = 100, accuracy = 0.01)) %>% 
+  summarise( mean_basket_of_goods_score_baseline = scales::percent(mean(basket_of_goods_score_baseline, na.rm = T),scale = 100 , accuracy = 0.1), 
+             mean_basket_of_goods_score_proposed = scales::percent( mean(basket_of_goods_score_proposed, na.rm = T), scale = 100, accuracy = 0.1),
+             mean_basket_of_goods_score_difference = scales::percent(mean(basket_of_goods_difference, na.rm = T) ,  scale = 100, accuracy = 0.1)) %>% 
   mutate(day_type = factor(day_type, levels = c("weekday", "saturday", "sunday"))) %>% 
   arrange(day_type) %>% 
   mutate(day_type = str_to_title(day_type)) %>% 
@@ -225,9 +226,9 @@ summary_table_bog_time <-   read_csv(here::here( "raw_data",paste0("summary_comp
   select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposed)) %>% 
   filter(geography  == "quarter_mile_hexagon" & max_trip_duration == 45 & geoid %in% quarter_mile_hex_grid_2926$geoid) %>% 
   group_by(day_type, start_time) %>% 
-  summarise( mean_bog_score_baseline = scales::percent(mean(basket_of_goods_score_baseline, na.rm = T),scale = 100 , accuracy = 0.01), 
-             mean_bog_score_proposed = scales::percent( mean(basket_of_goods_score_proposed, na.rm = T), scale = 100, accuracy = 0.01),
-             mean_bog_score_difference = scales::percent(mean(basket_of_goods_difference, na.rm = T) ,  scale = 100, accuracy = 0.01)) %>% 
+  summarise( mean_basket_of_goods_score_baseline = scales::percent(mean(basket_of_goods_score_baseline, na.rm = T),scale = 100 , accuracy = 0.1), 
+             mean_basket_of_goods_score_proposed = scales::percent( mean(basket_of_goods_score_proposed, na.rm = T), scale = 100, accuracy = 0.1),
+             mean_basket_of_goods_score_difference = scales::percent(mean(basket_of_goods_difference, na.rm = T) ,  scale = 100, accuracy = 0.1)) %>% 
   mutate(start_time = factor(start_time, levels = c("7 AM", "12 PM", "7 PM", "9 PM"))) %>% 
   mutate(day_type = factor(day_type, levels = c("weekday", "saturday", "sunday"))) %>% 
   arrange(day_type, start_time) %>% 
@@ -241,9 +242,9 @@ summary_table_assets <- read_csv(here::here( "raw_data", paste0("asset_group_com
   filter(geography  == "quarter_mile_hexagon" & max_trip_duration == 45 & geoid %in% quarter_mile_hex_grid_2926$geoid
          & !(assettype %in% c("low_wage_jobs", "mid_wage_jobs", "high_wage_jobs", "total_jobs")) ) %>% 
   group_by(day_type, assettype) %>% #$
-  summarise( mean_asset_count_baseline = round(mean(count_baseline, na.rm = T),3), 
-             mean_asset_count_proposed = round(mean(count_proposed, na.rm = T),3),
-             mean_asset_count_difference = round(mean(change_in_asset_count, na.rm = T),3)) %>% 
+  summarise( mean_asset_count_baseline = round(mean(count_baseline, na.rm = T),1), 
+             mean_asset_count_proposed = round(mean(count_proposed, na.rm = T),1),
+             mean_asset_count_difference = round(mean(change_in_asset_count, na.rm = T),1)) %>% 
   mutate(day_type = factor(day_type, levels = c("weekday", "saturday", "sunday"))) %>% 
   arrange(day_type, assettype) %>% 
   mutate(day_type = str_to_title(day_type)) %>% 
@@ -260,7 +261,9 @@ summary_table_jobs <- read_csv(here::here( "raw_data", paste0("asset_group_compa
   group_by(day_type, assettype) %>% #$
   summarise( mean_jobs_count_baseline = round(mean(count_baseline, na.rm = T),0), 
              mean_jobs_count_proposed = round(mean(count_proposed, na.rm = T),0),
-             mean_jobs_count_difference = round(mean(change_in_asset_count, na.rm = T),0))
+             mean_jobs_count_difference = round(mean(change_in_asset_count, na.rm = T),0)) %>% 
+  mutate(day_type = str_to_title(day_type)) %>% 
+  janitor::clean_names("title")
 
 summary_table_jobs_time <- read_csv(here::here( "raw_data", paste0("asset_group_comparison_", project_name, ".csv"))) %>% 
   rename(geoid = GEO_ID_GRP) %>% 
@@ -324,7 +327,8 @@ epa_hatch <- block_groups %>%
   mutate(col = 1) 
 
 
-
+study_area <- study_area %>% 
+  st_transform(4326) #convert to WGS 1984 for use in map
 
 #export data objects #####
 rm(project_name)
@@ -334,6 +338,11 @@ rm(parameters_raw)
 #rm(community_assets) adding in community assets to RDS to try adding them to app
 rm(community_asset_groups)
 rm(excluded_routes)
+rm(parks)
+rm(quarter_mile_hex_grid_2926)
+rm(block_group_need_scores)
+rm(block_group_centroids)
+#rm(study_area)
 library(purrr)
 library(here)
 
