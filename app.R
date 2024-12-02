@@ -19,6 +19,7 @@ library(here)
 library(leafem)
 library(shinyalert)
 library(plotly)
+library(markdown)
 # LOAD IN DATA ####
 source("utils.R")
 source("load_data.R")
@@ -66,7 +67,7 @@ tabItems(
                        "Metric",
                        choices = metric_choices, 
                        multiple = FALSE, 
-                       selected = "Count Proposed"),
+                       selected = 6),
            selectInput("asset",
                        "Asset Type",
                        choices = NULL, 
@@ -77,7 +78,7 @@ tabItems(
            column(width = 3, 
                   selectInput("geography", "Geography",
                               choices = geography_choices,
-                              selected = 2),
+                              selected = 1),
            selectInput("network",
                        "Network",
                        choices = c( "Baseline", "Proposal"), 
@@ -101,12 +102,12 @@ tabItems(
                     choices = start_time_choices, 
                     multiple = FALSE, 
                     selected = "12 PM"
-                    ),
-        selectInput("trip_length",
-                    "Max Trip Length",
-                    choices = trip_length_choices, 
-                    multiple = FALSE, 
-                    selected = 45)
+                    ) #,
+        # selectInput("trip_length",
+        #             "Max Trip Length",
+        #             choices = trip_length_choices, 
+        #             multiple = FALSE, 
+        #             selected = 45)
         
    )
    )
@@ -331,8 +332,9 @@ observeEvent(asset_reactive(), {
                    `Lookup Asset Group` == input$asset &
                    `Lookup Start Time` == input$start_time &
                    `Lookup Day Type` == input$day_type &
-                   `Lookup Geography`  == input$geography &
-                   `Lookup Max Trip Duration` == input$trip_length ) %>%
+                   `Lookup Geography`  == input$geography #&
+                   #`Lookup Max Trip Duration` == input$trip_length 
+                   ) %>%
           drop_na(Value) %>%
           filter(!is.nan(Value)) %>%
           filter(!is.infinite(Value))
@@ -342,8 +344,9 @@ observeEvent(asset_reactive(), {
         filter(`Lookup Metric` ==   input$metric & #no asset filter here
                  `Lookup Start Time` == input$start_time &
                  `Lookup Day Type` == input$day_type &
-                 `Lookup Geography`  == input$geography &
-             `Lookup Max Trip Duration` == input$trip_length ) %>%
+                 `Lookup Geography`  == input$geography #&
+             #`Lookup Max Trip Duration` == input$trip_length
+             ) %>%
         drop_na(Value) %>%
         filter(!is.nan(Value)) %>%
         filter(!is.infinite(Value)) 
@@ -399,21 +402,21 @@ pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
   
   metric_data_sf <- eventReactive(input$recalc,{
 
-    if(input$geography == 1 & input$metric %in% c(1,2, 3,7)){ # had to hardcode in the lookupval of block group geoid. need to refactor #bg, percent metrics
+    if(input$geography == 2 & input$metric %in% c(1,2, 3,7)){ # had to hardcode in the lookupval of block group geoid. need to refactor #bg, percent metrics
     block_groups <- files$block_groups %>% 
       left_join(metric_data(), by = "Geoid") %>% 
      drop_na(Value) %>%
     filter(Value != 0) %>%
      mutate(Value = pct_format(Value)) %>% 
       sf::st_as_sf() #added because R was making this a table not a spatial object
-    } else if(input$geography != 1 & !(input$metric %in% c(3,7))){ # qm, count metrics
+    } else if(input$geography != 2 & !(input$metric %in% c(3,7))){ # qm, count metrics
       quarter_mile <- files$quarter_mile_hex_grid %>% 
         left_join(metric_data(), by = "Geoid") %>% 
       drop_na(Value) %>%
        filter(Value != 0) %>%
         sf::st_as_sf()
       
-    } else if(input$geography == 1 & !(input$metric %in% c(1, 2, 3,7))){ # bg, count metrics
+    } else if(input$geography == 2 & !(input$metric %in% c(1, 2, 3,7))){ # bg, count metrics
       block_groups <- files$block_groups %>% 
         left_join(metric_data(), by = "Geoid") %>% 
         drop_na(Value) %>%
@@ -493,9 +496,10 @@ metric_data_detail <- reactive({
           filter(!(Assettype %in% c("High Wage Jobs", "Mid Wage Jobs", "Low Wage Jobs", "Total Jobs"))) %>% 
           filter(#`Lookup Metric` ==   input$metric & #filter by asset here
             `Lookup Start Time` == input$start_time &
-              `Lookup Day Type` == input$day_type &
+              `Lookup Day Type` == input$day_type # &
               # `Lookup Geography`  == input$geography &
-              `Lookup Max Trip Duration` == input$trip_length ) %>% 
+              #`Lookup Max Trip Duration` == input$trip_length
+            ) %>% 
           select(c(Assettype,  `Metric`, `Value`)) %>% 
           pivot_wider(id_cols = Assettype, names_from = Metric, values_from = Value) %>% 
           arrange(desc(`Percent Change In Asset Count`))
@@ -504,9 +508,10 @@ metric_data_detail <- reactive({
          filter( Geoid==click_county()) %>% 
          filter(#`Lookup Metric` ==   input$metric & #filter by asset here
                         `Lookup Start Time` == input$start_time &
-                        `Lookup Day Type` == input$day_type &
+                        `Lookup Day Type` == input$day_type #&
                        # `Lookup Geography`  == input$geography &
-                        `Lookup Max Trip Duration` == input$trip_length ) %>% 
+                        #`Lookup Max Trip Duration` == input$trip_length 
+                       ) %>% 
          filter((Assettype %in% c("High Wage Jobs", "Mid Wage Jobs", "Low Wage Jobs", "Total Jobs"))) %>% 
          select(c(Assettype,  `Metric`, `Value`)) %>% 
          pivot_wider(id_cols = Assettype, names_from = Metric, values_from = Value) %>% 
@@ -518,11 +523,28 @@ metric_data_detail <- reactive({
 })
 #https://stackoverflow.com/questions/46732849/shiny-detect-a-change-in-input-with-a-warning-in-ui-r
 
+
+popup_bog <- eventReactive(click_county(), {
+  
+  if(is.null(click_county())) {
+    out <- ""    # Not filtered
+  } else {  #if looking at basket of goods OR non-job assets, remove jobs
+   
+
+      
+    test <- files$network_data %>%  #metric data is already set to a sepcific table--either basker of goods or details
+      filter( Geoid==click_county() & Metric == "Change in Coverage Category")  
+    
+    out <- as.vector(test$Value)
+  }
+})
+
+
 observeEvent(input$recalc, {
   
 output$table <- DT::renderDataTable(
   metric_data_detail(), 
-  options = list(
+  options = list( pageLength = 50
   
   )
 )
@@ -532,7 +554,7 @@ observeEvent(input$summary_table, {
   
   output$summary_table <- DT::renderDataTable(
     summary_table_reactive(), 
-    options = list(
+    options = list( pageLength = 50
       
     )
   )
@@ -550,8 +572,8 @@ start_time_label <- reactive({
 day_type_label <- reactive({
   day_type_choices[day_type_choices ==input$day_type] })
 
-trip_length_label <- reactive({
-  trip_length_choices[trip_length_choices ==input$trip_length] })
+# trip_length_label <- reactive({
+#   trip_length_choices[trip_length_choices ==input$trip_length] })
 
  observeEvent(input$recalc, {
    
@@ -562,8 +584,9 @@ trip_length_label <- reactive({
         alpha = .8
       )%>%
        layout(title =paste0( names(metric_label_plot()), "<br><sup>", names(geography_label()), " at ", #use html to create superscript subtitle. 
-                                        names(start_time_label()), " on ", names(day_type_label()),", ",
-                                        names(trip_length_label()), " minute max trip length</sup>" ), 
+                                        names(start_time_label()), " on ", names(day_type_label()) #,", ",
+                                       # names(trip_length_label()), " minute max trip length</sup>" 
+                                        ), 
              
               xaxis = list(title = names(metric_label_plot()),
                            zerolinecolor = '#ffff',
@@ -641,8 +664,8 @@ trip_length_label <- reactive({
                            textsize = "15px",
                            direction = "auto"),
                  fillColor = ~metric_data_sf()$metric_color_group,
-                 popup = ~paste0(metric_label(), ": ", Value
-                                 
+                 popup = ~paste0(metric_label(), ": ", Value, " ", "<br>",
+                                 "Level of coverage change: ",`Change in Coverage Label`
                                  )
       ) %>%
       addPolylines(
@@ -697,7 +720,8 @@ trip_length_label <- reactive({
                         textsize = "15px",
                         direction = "auto"),
                       fillColor = ~metric_data_sf()$metric_color_group,
-                      popup = ~paste0(metric_label(), ": ", Value
+                      popup = ~paste0(metric_label(), ": ", Value, " ", "<br>",
+                                      "Level of coverage change: ",`Change in Coverage Label`
                                       
                       )
          ) %>%
