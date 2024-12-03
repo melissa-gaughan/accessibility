@@ -113,9 +113,17 @@ By calculating the Basket of Goods metric for two networks, we can see how the c
 
 -   **Day:** Day of week that the trip occurs on.
 
--   **Trip Start Time:** Time that the traveler begins their journey
+-   **Trip Start Time:** Time period that the traveler begins their journey.
 
--   **Max Trip Length:** Amount of time someone is willing to spend in transit. Uses a logarithmic decay curve to apply common-sense weighting so that a faster trip is more appealing than one that takes the maximum amount of time available
+    -   All Day (6 AM - 8 PM): Models a 14 hour window of travel time. Results show places that can be reached in 50% of travel itineraries. The model samples each origin 5 times every minute and provides a summary of accessibility.
+
+    -   AM (6 AM - 9 AM): Models the average trip made during the morning peak period.
+
+    -   MID (9 AM - 3 PM): Models the average trip made during the midday period.
+
+    -   PM (3 PM - 7 PM): Models the average trip made during the evening peak period.
+
+    -   EVE (& PM - 10 PM): Models the average trip made during the evening period.
 
 -   **Geography:** The geographic unit of analysis. Right now the options are block group and quarter mile hexagons. Results are first calculated for the hexagons and then population-weighted spatial interpolation is used to scale the results to the block group level.
 
@@ -139,10 +147,20 @@ By calculating the Basket of Goods metric for two networks, we can see how the c
 
 -   **Basket of Goods Difference:** The difference in the Basket of Goods score for the two networks. This should be interpreted as a percent difference.
 
+-   **Sum Asset Category Baseline:** The number of distinct types of community assets that can be reached from each origin point using the baseline transit network.
+
+-   **Sum Asset Category Proposed:**The number of distinct types of community assets that can be reached from each origin point using the proposed transit network.
+
+-   **Change in Coverage Category:** The change in the number of distinct types of community assets that can be reached from each origin point between the proposed and baseline transit networks.
+
 ## Map Layers
 
 Two map layers are added to enrich the data viewing experience:
 
 -   EPA Overlay: A hatched rendering of block groups that have an equity priority area score of 4 or 5 (high equity area communities).
 
--   Labels: Will show the number value of the metric on each geography.
+-   Study Area: Will show the outline of the current project study area (currently SouthLink) on the map.
+
+### Summaries
+
+The summary tab shows the average results for each scenario for the South Link Connections Study area. The results can be interpreted as an average change in the study area between the two networks.
