@@ -59,8 +59,8 @@ tabItems(
              status = "warning", 
              collapsible = T,
               column(width = 3, 
-                     strong("How many places can someone get to using transit in a certain about of time?"), 
-                     p("Use the filters to select a day, start time, trip length, geography and metric. If you select a Basket of Goods metric, you do not need to select an asset type."), 
+                     strong("How many places can someone travel in 45 minutes using transit?"), 
+                     p("Use the filters to select a day, start time, geography and metric. If you select a Basket of Goods or Coverage metric, you do not need to select an asset type."), 
                      p("Learn more about the analysis in the FAQ")),
              column(width = 3,
            selectInput("metric",
@@ -115,8 +115,8 @@ tabItems(
    
    ,
   
-  column(width = 8,  
-         box(title = "Map of Transit Access (click a shape to view details)",
+  column(width = 6,  
+         box(title = "Transit Access (click a shape to view details)",
            height = "100%",   status = "primary",
              id = "map_container",
            width = NULL, solidHeader = TRUE,
@@ -124,11 +124,11 @@ tabItems(
             # tableOutput("test_table" ) 
             leaflet::leafletOutput("metric_map")#, 
                            )),
-  column(width = 4, 
-           box(title = "Distribution of County-Wide Accessibility",
-               status = "primary", collapsible = TRUE,
+  column(width = 6, 
+         box(title = "Possible Destinations (Proposed Network)",
+             status = "primary", collapsible = TRUE,
              height = "100%",width = NULL, solidHeader = TRUE,            
-              plotlyOutput("plot" ) 
+             leaflet::leafletOutput("response_map")
              )), 
   column(width = 12, 
          box(title = "Details Table (click on map to populate)",
@@ -180,7 +180,7 @@ tabItem( "Summary",
                  collapsible = T,
                  column(width = 4, 
                         strong("How has community asset and worksite access changed for the study area?"), 
-                        p("Select a summary table to view. All results are filtered to only the project study area."), 
+                        p("Select a summary table to view. All results are filtered to only the project study area and assume a 45 minute travel period."), 
                         p("Learn more about the analysis in the FAQ.")),
                  column(width = 8,
                         selectInput("summary_table",
@@ -401,29 +401,29 @@ pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
 
   
   metric_data_sf <- eventReactive(input$recalc,{
-
-    if(input$geography == 2 & input$metric %in% c(1,2, 3,7)){ # had to hardcode in the lookupval of block group geoid. need to refactor #bg, percent metrics
+    # had to hardcode in the lookupval of block group geoid. need to refactor
+    if(input$geography == 2 & input$metric %in% c(1, 3, 5, 7, 12)){  #bg, percent metrics
     block_groups <- files$block_groups %>% 
       left_join(metric_data(), by = "Geoid") %>% 
      drop_na(Value) %>%
     filter(Value != 0) %>%
      mutate(Value = pct_format(Value)) %>% 
       sf::st_as_sf() #added because R was making this a table not a spatial object
-    } else if(input$geography != 2 & !(input$metric %in% c(3,7))){ # qm, count metrics
+    } else if(input$geography != 2 & !(input$metric %in% c(1, 3, 5, 7, 12))){ # qm, count metrics
       quarter_mile <- files$quarter_mile_hex_grid %>% 
         left_join(metric_data(), by = "Geoid") %>% 
       drop_na(Value) %>%
        filter(Value != 0) %>%
         sf::st_as_sf()
       
-    } else if(input$geography == 2 & !(input$metric %in% c(1, 2, 3,7))){ # bg, count metrics
+    } else if(input$geography == 2 & !(input$metric %in% c(1, 3, 5, 7, 12))){ # bg, count metrics
       block_groups <- files$block_groups %>% 
         left_join(metric_data(), by = "Geoid") %>% 
         drop_na(Value) %>%
         filter(Value != 0) %>%
       
         sf::st_as_sf()
-    } else   {    #(input$geography != 1 & !(input$metric %in% c(1, 2, 3,7))){ #qm, percent metrics
+    } else   {    #qm, percent metrics
       quarter_mile <- files$quarter_mile_hex_grid %>% 
         left_join(metric_data(), by = "Geoid") %>% 
         drop_na(Value) %>%
@@ -480,7 +480,48 @@ click_county(NULL)
   
 })
 
+run_id_reactive <- reactiveVal()
 
+observeEvent(input$recalc, {
+  
+  run_id_df <- files$parameters_df %>% 
+    filter( lookup_start_time == input$start_time &
+             lookup_day_type == input$day_type &
+             lookup_geography  == input$geography #&
+           #`Lookup Max Trip Duration` == input$trip_length 
+    ) 
+run_id_reactive(run_id_df$run_id)
+ } )
+
+range_sf <- reactive({
+  if(is.null(click_county())){
+  NULL #not sure about this
+  } else {
+    run_filter <- run_id_reactive()
+    
+    test <- files$proposed_transit_matrix %>%  #!!!! come back to add network switch!
+      filter(run_id == run_filter) %>% 
+      filter(from_id ==click_county()) #filter to selected origin
+
+    test_sf <- files$quarter_mile_hex_grid %>% 
+      inner_join(test, by = c("Geoid" = "to_id")) #find destination values in list and filter
+ 
+  }
+})
+
+
+
+selected_geo <-  reactive({
+  if(is.null(click_county()) | input$geography == 2){ #don't need this for the block groups, set to null
+    NULL #not sure about this
+  } else {
+ 
+ #filter to selected origin
+    test_sf <- files$quarter_mile_hex_grid %>% 
+      filter(Geoid == click_county() )
+    
+  }
+})
 
 
 
@@ -502,7 +543,9 @@ metric_data_detail <- reactive({
             ) %>% 
           select(c(Assettype,  `Metric`, `Value`)) %>% 
           pivot_wider(id_cols = Assettype, names_from = Metric, values_from = Value) %>% 
-          arrange(desc(`Percent Change In Asset Count`))
+          arrange(desc(`Percent Change In Asset Count`))%>% 
+      mutate(`Percent Change In Asset Count` = scales::percent(`Percent Change In Asset Count`, scale = 1)  ) %>% 
+          janitor::adorn_totals(na.rm = T , `...` = -c(`Percent Change In Asset Count`))
      }  else if (input$asset >= 13) { #filter to ONLY jobs data
        files$network_data_details %>%  #metric data is already set to a sepcific table--either basker of goods or details
          filter( Geoid==click_county()) %>% 
@@ -515,7 +558,9 @@ metric_data_detail <- reactive({
          filter((Assettype %in% c("High Wage Jobs", "Mid Wage Jobs", "Low Wage Jobs", "Total Jobs"))) %>% 
          select(c(Assettype,  `Metric`, `Value`)) %>% 
          pivot_wider(id_cols = Assettype, names_from = Metric, values_from = Value) %>% 
-         arrange(desc(`Percent Change In Asset Count`))
+         arrange(desc(`Percent Change In Asset Count`))%>% 
+         mutate(`Percent Change In Asset Count` = scales::percent(`Percent Change In Asset Count`, scale = 1)  ) %>% 
+         janitor::adorn_totals(na.rm = T, `...` = -c(`Percent Change In Asset Count`))
 }
 
 
@@ -524,23 +569,11 @@ metric_data_detail <- reactive({
 #https://stackoverflow.com/questions/46732849/shiny-detect-a-change-in-input-with-a-warning-in-ui-r
 
 
-popup_bog <- eventReactive(click_county(), {
-  
-  if(is.null(click_county())) {
-    out <- ""    # Not filtered
-  } else {  #if looking at basket of goods OR non-job assets, remove jobs
-   
-
-      
-    test <- files$network_data %>%  #metric data is already set to a sepcific table--either basker of goods or details
-      filter( Geoid==click_county() & Metric == "Change in Coverage Category")  
-    
-    out <- as.vector(test$Value)
-  }
-})
 
 
 observeEvent(input$recalc, {
+  
+
   
 output$table <- DT::renderDataTable(
   metric_data_detail(), 
@@ -572,43 +605,7 @@ start_time_label <- reactive({
 day_type_label <- reactive({
   day_type_choices[day_type_choices ==input$day_type] })
 
-# trip_length_label <- reactive({
-#   trip_length_choices[trip_length_choices ==input$trip_length] })
 
- observeEvent(input$recalc, {
-   
-   output$plot <-renderPlotly({ 
-      plot_ly(
-        x= metric_data()$Value, 
-        type = "histogram", 
-        alpha = .8
-      )%>%
-       layout(title =paste0( names(metric_label_plot()), "<br><sup>", names(geography_label()), " at ", #use html to create superscript subtitle. 
-                                        names(start_time_label()), " on ", names(day_type_label()) #,", ",
-                                       # names(trip_length_label()), " minute max trip length</sup>" 
-                                        ), 
-             
-              xaxis = list(title = names(metric_label_plot()),
-                           zerolinecolor = '#ffff',
-                           zerolinewidth = 2,
-                           gridcolor = 'ffff'),
-              yaxis = list(title = "Count of Geographies",
-                           zerolinecolor = '#ffff',
-                           zerolinewidth = 2,
-                           gridcolor = 'ffff'),
-              plot_bgcolor='#e5ecf6')
-
-   
-       
-     })  
-  
-},ignoreNULL = FALSE)
-  
-  
-  
-#output$click_info <- renderTable(metric_data_detail())
-
-#output$test_table <- renderTable(metric_data())
   # Map reactives ####
   output$metric_map <- renderLeaflet({
     # Use leaflet() here, and only include aspects of the map that
@@ -616,13 +613,13 @@ day_type_label <- reactive({
     # entire map is being torn down and recreated).
     leaflet::leaflet() %>%
       leaflet::addProviderTiles("CartoDB.Positron") %>%
-      leaflet::setView(lng = -122.3321, lat = 47.6062, zoom = 11 ) %>%
+      leaflet::setView(lng = -122.301300, lat = 47.38838, zoom = 10  ) %>%
       leaflet.extras::addSearchOSM() %>%
       leafem::addLogo( img =   metro,
                        src="remote", 
                        position = "bottomright",
                        offset.x = 30,
-                       offset.y = 100,
+                       offset.y = 30,
                        height = 30, 
                        width = 80) %>% 
       leaflet::addScaleBar(position = "topright")   %>% 
@@ -642,7 +639,52 @@ day_type_label <- reactive({
  }) 
   
    observeEvent(input$recalc, {
-     if(!isTruthy(input$routes)){
+     if(!isTruthy(input$routes) & input$metric %in% unique(files$network_data_details$`Lookup Metric`)){
+       #####
+ #no coverage category in details table
+         proxy <- leafletProxy("metric_map")   %>%
+           clearShapes() %>%
+           clearGroup("Routes") %>% #"Labels", "EPA Overlay", 
+           addPolygons( data = metric_data_sf() ,
+                        weight = .5, opacity = 1,
+                        color = "white",
+                        # dashArray = "3",
+                        layerId = metric_data_sf()$Geoid,
+                        fillOpacity = 0.7 ,
+                        highlightOptions = highlightOptions(
+                          weight = 2,
+                          color = "#666",
+                          #dashArray = "",
+                          fillOpacity = 0.7,
+                          bringToFront = FALSE) ,   #)#,
+                        label = ~paste0(Value,""),
+                        labelOptions = labelOptions(
+                          style = list("font-weight" = "normal", padding = "3px 8px"),
+                          textsize = "15px",
+                          direction = "auto"),
+                        fillColor = ~metric_data_sf()$metric_color_group,
+                        popup = ~paste0(metric_label(), ": ", Value  ))%>%
+           addPolylines(
+             data = epa_hatch_reactive(),
+             color = "black",
+             weight = 0.6,
+             group = "EPA Overlay"
+           )  %>%
+           addPolygons(
+             data = study_area_reactive(), 
+             fill = FALSE, 
+             color = "black", 
+             weight = 2,
+             dashArray = 3,
+             group = "Study Area"
+           ) %>% 
+           addLayersControl(
+             overlayGroups = c( "EPA Overlay", "Study Area"), #"Labels", 
+             options = layersControlOptions(collapsed = FALSE), 
+             position = "topleft")
+         #####
+       } else if ( (!isTruthy(input$routes)) & !(input$metric %in% unique(files$network_data_details$`Lookup Metric`))) {
+         #####
          proxy <- leafletProxy("metric_map")   %>%
           clearShapes() %>%
           clearGroup("Routes") %>% #"Labels", "EPA Overlay", 
@@ -682,49 +724,37 @@ day_type_label <- reactive({
        dashArray = 3,
        group = "Study Area"
      ) %>% 
-    
-    # # addLabelOnlyMarkers(
-    #                data = metric_data_labels(),
-    #               # lat = metric_data_labels()$Y,
-    #                 #lng = metric_data_labels()$X,
-    #                 label = metric_data_labels()$Value,
-    #                  group = "Labels") %>%
       addLayersControl(
         overlayGroups = c( "EPA Overlay", "Study Area"), #"Labels", 
         options = layersControlOptions(collapsed = FALSE), 
         position = "topleft"
-      ) #%>%
-
-    # hideGroup(c("EPA Overlay", "Routes") ) #
-     # myVariable <<- proxy
-     } else {
-       proxy <- leafletProxy("metric_map")   %>%
-         clearShapes() %>%
-         clearGroup("Routes") %>% #"Labels", "EPA Overlay", 
-         
-         addPolygons( data = metric_data_sf() ,
-                      weight = .5, opacity = 1,
-                      color = "white",
-                      # dashArray = "3",
-                      layerId = metric_data_sf()$Geoid,
-                      fillOpacity = 0.7 ,
-                      highlightOptions = highlightOptions(
-                        weight = 2,
-                        color = "#666",
-                        #dashArray = "",
-                        fillOpacity = 0.7,
-                        bringToFront = FALSE) ,   #)#,
-                      label = ~paste0(Value,""),
-                      labelOptions = labelOptions(
-                        style = list("font-weight" = "normal", padding = "3px 8px"),
-                        textsize = "15px",
-                        direction = "auto"),
-                      fillColor = ~metric_data_sf()$metric_color_group,
-                      popup = ~paste0(metric_label(), ": ", Value, " ", "<br>",
-                                      "Level of coverage change: ",`Change in Coverage Label`
-                                      
-                      )
-         ) %>%
+      ) 
+     
+} else if(isTruthy(input$routes) & input$metric %in% unique(files$network_data_details$`Lookup Metric`)){
+  #####
+       #no coverage category in details table
+         proxy <- leafletProxy("metric_map")   %>%
+           clearShapes() %>%
+           clearGroup("Routes") %>% #"Labels", "EPA Overlay", 
+           addPolygons( data = metric_data_sf() ,
+                        weight = .5, opacity = 1,
+                        color = "white",
+                        # dashArray = "3",
+                        layerId = metric_data_sf()$Geoid,
+                        fillOpacity = 0.7 ,
+                        highlightOptions = highlightOptions(
+                          weight = 2,
+                          color = "#666",
+                          #dashArray = "",
+                          fillOpacity = 0.7,
+                          bringToFront = FALSE) ,   #)#,
+                        label = ~paste0(Value,""),
+                        labelOptions = labelOptions(
+                          style = list("font-weight" = "normal", padding = "3px 8px"),
+                          textsize = "15px",
+                          direction = "auto"),
+                        fillColor = ~metric_data_sf()$metric_color_group,
+                        popup = ~paste0(metric_label(), ": ", Value  )) %>%
          addPolylines(
            data = epa_hatch_reactive(),
            color = "black",
@@ -751,8 +781,58 @@ day_type_label <- reactive({
          options = layersControlOptions(collapsed = FALSE), 
          position = "topleft"
        )
-      
-  }
+       } else {
+  #####
+         proxy <- leafletProxy("metric_map")   %>%
+           clearShapes() %>%
+           clearGroup("Routes") %>% #"Labels", "EPA Overlay", 
+           addPolygons( data = metric_data_sf() ,
+                        weight = .5, opacity = 1,
+                        color = "white",
+                        # dashArray = "3",
+                        layerId = metric_data_sf()$Geoid,
+                        fillOpacity = 0.7 ,
+                        highlightOptions = highlightOptions(
+                          weight = 2,
+                          color = "#666",
+                          #dashArray = "",
+                          fillOpacity = 0.7,
+                          bringToFront = FALSE) ,   #)#,
+                        label = ~paste0(Value,""),
+                        labelOptions = labelOptions(
+                          style = list("font-weight" = "normal", padding = "3px 8px"),
+                          textsize = "15px",
+                          direction = "auto"),
+                        fillColor = ~metric_data_sf()$metric_color_group,
+                        popup = ~paste0(metric_label(), ": ", Value, " ", "<br>",
+                                        "Level of coverage change: ",`Change in Coverage Label`) ) %>%
+           addPolylines(
+             data = epa_hatch_reactive(),
+             color = "black",
+             weight = 0.6,
+             group = "EPA Overlay"
+           )  %>%
+           addPolygons(
+             data = study_area_reactive(), 
+             fill = FALSE, 
+             color = "black", 
+             weight = 2,
+             dashArray = 3,
+             group = "Study Area"
+           ) %>% 
+           addPolylines(
+             data = routes(),
+             color = "black",
+             weight = 3 ,
+             group = "Routes",
+             label = ~route_short_name,
+             popup = ~paste0("<br>Route: ", route_short_name  ) ) %>%
+           addLayersControl(
+             overlayGroups = c( "EPA Overlay", "Study Area"), #"Labels", 
+             options = layersControlOptions(collapsed = FALSE), 
+             position = "topleft"
+           )
+       }
   },ignoreNULL = FALSE)
 
 
@@ -772,7 +852,210 @@ day_type_label <- reactive({
    }, ignoreNULL = FALSE)
    
    
+   output$response_map <- renderLeaflet({
+     # Use leaflet() here, and only include aspects of the map that
+     # won't need to change dynamically (at least, not unless the
+     # entire map is being torn down and recreated).
+     leaflet::leaflet() %>%
+       leaflet::addProviderTiles("CartoDB.Positron") %>%
+       leaflet::setView(lng = -122.301300, lat = 47.38838, zoom = 10 ) %>%
+       leaflet.extras::addSearchOSM() %>%
+       leafem::addLogo( img =   metro,
+                        src="remote",
+                        position = "bottomright",
+                        offset.x = 30,
+                        offset.y = 30,
+                        height = 30,
+                        width = 80) %>%
+       leaflet::addScaleBar(position = "topright")   %>%
+       addLayersControl(
+         overlayGroups = c( "EPA Overlay",  "Study Area"), #"Labels",
+         options = layersControlOptions(collapsed = FALSE),
+         position = "topleft"
+       ) %>%
+       hideGroup(c("EPA Overlay",  "Study Area") )})
 
+
+   response_map_pal <- colorNumeric(palette = "viridis",
+                                    domain = c(1:45))
+
+   observeEvent(input$metric_map_shape_click, {
+     
+     if((is.null(input$metric_map_shape_click) | input$geography == 2) ){ #also take off response map for bg
+
+     proxy <- leafletProxy("response_map")   %>%
+       clearShapes() %>%
+      clearGroup("Routes") %>% 
+       addPolylines(
+         data = epa_hatch_reactive(),
+         color = "black",
+         weight = 0.6,
+         group = "EPA Overlay"
+       )  %>%
+       addPolygons(
+         data = study_area_reactive(),
+         fill = FALSE,
+         color = "black",
+         weight = 2,
+         dashArray = 3,
+         group = "Study Area"
+       ) %>%
+       addLayersControl(
+         overlayGroups = c( "EPA Overlay", "Study Area"),
+         options = layersControlOptions(collapsed = FALSE),
+         position = "topleft"
+       )
+     } else if (!is.null(input$routes)) {
+       #####
+       proxy <- leafletProxy("response_map")   %>%
+         clearShapes() %>%
+         clearGroup("Routes") %>% 
+         addPolygons( data = range_sf() ,
+                      weight = .5, opacity = 1,
+                      color = "white",
+                    
+                      layerId = range_sf()$Geoid,
+                      fillOpacity = 0.7 ,
+                      fillColor = ~response_map_pal(travel_time_p50),
+                
+                      label = ~paste0(travel_time_p50,""),
+                      labelOptions = labelOptions(
+                        style = list("font-weight" = "normal", padding = "3px 8px"),
+                        textsize = "15px",
+                        direction = "auto"),
+                      popup = ~paste0("Average length of transit trip: ", travel_time_p50 ),
+                      highlightOptions = highlightOptions(
+                        weight = 2,
+                        color = "#666",
+                        #dashArray = "",
+                        fillOpacity = 0.7,
+                        bringToFront = FALSE) 
+         )%>%
+         addPolygons( data = selected_geo() ,
+                      weight = .5, opacity = 1,
+                      color = "white",
+                      layerId = selected_geo()$Geoid,
+                      fillOpacity = 0.7 ,
+                      fillColor = "red",
+                     highlightOptions = highlightOptions(
+                        weight = 2,
+                        color = "#666",
+                        fillOpacity = 0.7,
+                        bringToFront = FALSE) 
+         )%>%
+         
+         addPolylines(
+           data = epa_hatch_reactive(),
+           color = "black",
+           weight = 0.6,
+           group = "EPA Overlay"
+         )  %>%
+         addPolygons(
+           data = study_area_reactive(),
+           fill = FALSE,
+           color = "black",
+           weight = 2,
+           dashArray = 3,
+           group = "Study Area"
+         ) %>%
+         addPolylines(
+           data = routes(),
+           color = "black",
+           weight = 3 ,
+           group = "Routes",
+           label = ~route_short_name,
+           popup = ~paste0("<br>Route: ", route_short_name  ) 
+        ) %>%
+         addLayersControl(
+           overlayGroups = c( "EPA Overlay", "Study Area"),
+           options = layersControlOptions(collapsed = FALSE),
+           position = "topleft"
+         )
+       #####
+     } else {
+     
+         proxy <- leafletProxy("response_map")   %>%
+           clearShapes() %>%
+           clearGroup("Routes") %>% 
+           addPolygons( data = range_sf() ,
+                        weight = .5, opacity = 1,
+                        color = "white",
+                        layerId = range_sf()$Geoid,
+                        fillOpacity = 0.7 ,
+                        fillColor = ~response_map_pal(travel_time_p50),
+                        label = ~paste0(travel_time_p50,""),
+                        labelOptions = labelOptions(
+                          style = list("font-weight" = "normal", padding = "3px 8px"),
+                          textsize = "15px",
+                          direction = "auto"),
+                        popup = ~paste0("Average length of transit trip: ", travel_time_p50 ),
+                        highlightOptions = highlightOptions(
+                          weight = 2,
+                          color = "#666",
+                          #dashArray = "",
+                          fillOpacity = 0.7,
+                          bringToFront = FALSE) 
+           )%>%
+           addPolygons( data = selected_geo() ,
+                        weight = .5, opacity = 1,
+                        color = "white",
+                        layerId = selected_geo()$Geoid,
+                        fillOpacity = 0.7 ,
+                        fillColor = "red",
+                        highlightOptions = highlightOptions(
+                          weight = 2,
+                          color = "#666",
+                          #dashArray = "",
+                          fillOpacity = 0.7,
+                          bringToFront = FALSE) 
+           )%>%
+           addPolylines(
+             data = epa_hatch_reactive(),
+             color = "black",
+             weight = 0.6,
+             group = "EPA Overlay"
+           )  %>%
+           addPolygons(
+             data = study_area_reactive(),
+             fill = FALSE,
+             color = "black",
+             weight = 2,
+             dashArray = 3,
+             group = "Study Area"
+           ) %>%
+     
+           addLayersControl(
+             overlayGroups = c( "EPA Overlay", "Study Area"),
+             options = layersControlOptions(collapsed = FALSE),
+             position = "topleft"
+           )
+       
+     }
+#####
+   }, ignoreNULL = FALSE)
+
+   observeEvent(input$metric_map_shape_click,{
+     proxy <- leafletProxy("response_map", data = range_sf())
+     
+     # Remove any existing legend, and only if the legend is
+     # enabled, create a new one.
+     
+     if(input$geography == 1) { #if geo is hexagons, recreate legend
+       proxy %>% 
+         clearControls() %>%
+         addLegend(position = "topright",
+                   pal = response_map_pal,
+                   values = ~travel_time_p50,
+                   opacity =  0.9,
+                   title = "Average Travel Time")
+       
+       
+     } else {
+       proxy %>% 
+         clearControls() 
+     }
+    
+   }, ignoreNULL = TRUE)
   
    shinyalert(
      title = "King County Metro Transit Accessibility",
