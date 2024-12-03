@@ -166,6 +166,13 @@ lookup_table_asset_group <- tibble(assettype= unique(community_asset_groups$asse
   rowid_to_column() %>% 
   rename(lookup_asset_group = rowid)
 
+parameters_df <- parameters_raw %>% 
+  select(run_id, geography, day_type, start_time, max_trip_duration) %>% 
+  left_join( lookup_table_day_type) %>% 
+  left_join(  lookup_table_start_time) %>% 
+  left_join( lookup_table_geography) %>% 
+  left_join( lookup_table_trip_length)
+
 #coverage (map 2)
 
 baseline_transit_matrix <- readr::read_csv(here::here("raw_data", "SLC_Baseline_travel_time_matrix_periods.csv"))
@@ -198,7 +205,8 @@ mutate(Value = case_when(Value == Inf ~ 1,
   left_join(lookup_table_start_time) %>% 
   left_join(lookup_table_trip_length) %>% 
   mutate(Metric  = stringr::str_replace_all(Metric, "_", " ")) %>% 
-  mutate(Metric = stringr::str_to_title(Metric)) 
+  mutate(Metric = stringr::str_to_title(Metric)) %>% 
+  janitor::clean_names("title")
   
 
 
@@ -230,7 +238,9 @@ network_data_details <- read_csv(here::here( "raw_data", paste0("asset_group_com
   left_join(lookup_table_start_time) %>% 
   left_join(lookup_table_trip_length) %>% 
   mutate(Metric  = stringr::str_replace_all(Metric, "_", " ")) %>% 
-  mutate(Metric = stringr::str_to_title(Metric))
+  mutate(Metric = stringr::str_to_title(Metric)) %>% 
+  janitor::clean_names("title")
+
 
 unique(network_data_details$Metric)
 unique(network_data_details$assettype)
