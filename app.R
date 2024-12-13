@@ -18,7 +18,7 @@ library(rsconnect)
 library(here)
 library(leafem)
 library(shinyalert)
-library(plotly)
+#library(plotly)
 library(markdown)
 # LOAD IN DATA ####
 source("utils.R")
@@ -58,28 +58,30 @@ tabItems(
              solidHeader = TRUE,
              status = "warning", 
              collapsible = T,
-              column(width = 3, 
+              column(width = 2, 
                      strong("How many places can someone travel in 45 minutes using transit?"), 
-                     p("Use the filters to select a day, start time, geography and metric. If you select a Basket of Goods or Coverage metric, you do not need to select an asset type."), 
-                     p("Learn more about the analysis in the FAQ")),
-             column(width = 3,
+                     p("Use the filters to select a day, start time, geography and metric. If you select a Access Strength or Access Range metric, you do not need to select an asset type."), 
+                     p("Learn more about the analysis in the FAQ")
+                    ),
+           
+             column(width = 2,
            selectInput("metric",
                        "Metric",
                        choices = metric_choices, 
                        multiple = FALSE, 
-                       selected = 6),
+                       selected = 1),
            selectInput("asset",
                        "Asset Type",
                        choices = NULL, 
-                       multiple = FALSE), 
-           
-           actionButton("recalc", "Load", class = "btn btn-warning")
+                       multiple = FALSE)
            ), 
-           column(width = 3, 
+           column(width = 2, 
                   selectInput("geography", "Geography",
                               choices = geography_choices,
-                              selected = 1),
-           selectInput("network",
+                              selected = 1)
+           ),
+   column(width = 2, 
+          selectInput("network",
                        "Network",
                        choices = c( "Baseline", "Proposal"), 
                        multiple = FALSE, 
@@ -90,7 +92,7 @@ tabItems(
                        choices = NULL, 
                        multiple = TRUE)
          ),
-  column(width = 3,
+  column(width = 2,
         selectInput("day_type",
                     "Day",
                     choices = day_type_choices, 
@@ -102,14 +104,21 @@ tabItems(
                     choices = start_time_choices, 
                     multiple = FALSE, 
                     selected = "12 PM"
-                    ) #,
-        # selectInput("trip_length",
-        #             "Max Trip Length",
-        #             choices = trip_length_choices, 
-        #             multiple = FALSE, 
-        #             selected = 45)
-        
-   )
+                    ) 
+   ), 
+  column(width = 2,   
+         
+         selectInput("download_selection",
+                     "Download Options",
+                     choices = c("Metric", "Possible Destinations", "Table"), 
+                     multiple = FALSE, 
+                     selected = "Metric") ,
+         
+         
+         actionButton("recalc", "Load Data", class = "btn btn-warning"), 
+         
+         downloadButton("downloadData", label = "Download Data", icon = NULL, class="btn btn-default")
+  )
    )
    ) 
    
@@ -182,16 +191,20 @@ tabItem( "Summary",
                         strong("How has community asset and worksite access changed for the study area?"), 
                         p("Select a summary table to view. All results are filtered to only the project study area and assume a 45 minute travel period."), 
                         p("Learn more about the analysis in the FAQ.")),
-                 column(width = 8,
+                 column(width = 4,
                         selectInput("summary_table",
                                     "Summary Table",
-                                    choices = c("Basket of Goods", 
-                                                "Basket of Goods By Time Period",
-                                                "Community Asset Access", 
+                                    choices = c("Access Strength", 
+                                                "Access Strength By Time Period",
+                                                "Access Range", 
                                                 "Worksite Access", 
                                                 "Worksite Access By Time Period"),
                                     multiple = FALSE, 
-                                    selected = "Basket of Goods")
+                                    selected = "Access Strength"
+                                    )
+                        ), 
+               column(width = 4,
+                        downloadButton("download_summary_table", "Download Table", icon = NULL)
          
          ), 
          column(width = 12, 
@@ -224,14 +237,16 @@ sidebar =  dashboardSidebar(
 # SERVER#####
 server <- function(input, output) {
   
+  
+  
   # create reactive for summary tables
   summary_table_reactive <- reactive({
     
-    if(input$summary_table == "Basket of Goods"){
+    if(input$summary_table == "Access Strength"){
       summary_table_data <- files$summary_table_bog
-    } else if(  input$summary_table ==  "Basket of Goods By Time Period"){
+    } else if(  input$summary_table ==  "Access Strength By Time Period"){
       summary_table_data <- files$summary_table_bog_time
-    }else if(  input$summary_table ==  "Community Asset Access"){
+    }else if(  input$summary_table ==  "Access Range"){
       summary_table_data <- files$summary_table_assets
      } else if(  input$summary_table ==   "Worksite Access"){
         summary_table_data <- files$summary_table_jobs
@@ -402,21 +417,21 @@ pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
   
   metric_data_sf <- eventReactive(input$recalc,{
     # had to hardcode in the lookupval of block group geoid. need to refactor
-    if(input$geography == 2 & input$metric %in% c(1, 3, 5, 7, 12)){  #bg, percent metrics
+    if(input$geography == 2 & input$metric %in% c(2, 4, 7, 8)){  #bg, percent metrics
     block_groups <- files$block_groups %>% 
       left_join(metric_data(), by = "Geoid") %>% 
      drop_na(Value) %>%
     filter(Value != 0) %>%
      mutate(Value = pct_format(Value)) %>% 
       sf::st_as_sf() #added because R was making this a table not a spatial object
-    } else if(input$geography != 2 & !(input$metric %in% c(1, 3, 5, 7, 12))){ # qm, count metrics
+    } else if(input$geography != 2 & !(input$metric %in% c(2,4,7,8))){ # qm, count metrics
       quarter_mile <- files$quarter_mile_hex_grid %>% 
         left_join(metric_data(), by = "Geoid") %>% 
       drop_na(Value) %>%
        filter(Value != 0) %>%
         sf::st_as_sf()
       
-    } else if(input$geography == 2 & !(input$metric %in% c(1, 3, 5, 7, 12))){ # bg, count metrics
+    } else if(input$geography == 2 & !(input$metric %in% c(2,4,7,8))){ # bg, count metrics
       block_groups <- files$block_groups %>% 
         left_join(metric_data(), by = "Geoid") %>% 
         drop_na(Value) %>%
@@ -432,25 +447,79 @@ pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
         sf::st_as_sf()
     } 
   },  ignoreNULL = FALSE)
-  
-# responsive labels for multiple geos
-  # metric_data_labels <- eventReactive(input$recalc,{
-  #   
-  #   
-  #   if(input$geography == 1){ # had to hardcode in the lookupval of block group geoid. need to refactor
-  #   files$block_group_centroids %>%
-  #     left_join(metric_data()) %>%
-  #     drop_na(Value) %>%
-  #     filter(Value != 0) %>%
-  #     sf::st_as_sf() #added because R was making this a table not a spatial object
-  #     } else {
-  #       files$quarter_mile_hex_grid %>% 
-  #         left_join(metric_data()) %>%
-  #         drop_na(Value) %>%
-  #         filter(Value != 0) %>%
-  #         sf::st_as_sf()
-  #     } 
-  # },  ignoreNULL = FALSE)
+
+ observeEvent(input$download_selection, {
+  # print(input$download_selection)
+ #  print(input$recalc)
+ #  req(input$recalc)
+    if(input$download_selection == "Metric" & !is.null(input$recalc)){
+    
+ output$downloadData <-    downloadHandler(
+      
+      filename = function() {
+      "transit_accessibility.zip"
+    },
+    content = function(fname) {
+   #   if(exists(tmpdir)){ rm(tmpdir)}
+      tmpdir <- tempdir()
+      setwd(tempdir())
+      directory <- file.path(tmpdir, "mygeometry")
+      dir.create(directory)
+      path <- file.path(directory, "transit_accessibility.shp")
+      st_write(metric_data_sf(), path, append = F, overwrite=T)
+      
+      files <- file.path("mygeometry", list.files("mygeometry/"))
+      
+      zip::zipr(zipfile = fname,
+                files = files,
+                include_directories = TRUE,
+                mode = "mirror")
+    } 
+      )
+    } else if (input$download_selection == "Possible Destinations" & isTruthy(input$recalc) & isTruthy(click_county() & input$geography == 1) ){ 
+      #only populate if selectors are set to hex grid and the response map has been populated
+      
+      output$downloadData <-  downloadHandler(
+        
+        filename = function() {
+          "possible_destinations.zip"
+        },
+        content = function(fname) {
+          tmpdir <- tempdir()
+          setwd(tempdir())
+          directory <- file.path(tmpdir, "mygeometry")
+          dir.create(directory)
+          path <- file.path(directory, "possible_destinations.shp")
+          st_write(range_sf(), path, append = F,  overwrite=T)
+          
+          files <- file.path("mygeometry", list.files("mygeometry/"))
+          
+          zip::zipr(zipfile = fname,
+                    files = files,
+                    include_directories = TRUE,
+                    mode = "mirror")
+        } 
+      ) 
+      
+      } else if (input$download_selection == "Table" & isTruthy(input$recalc) & isTruthy(click_county()) ){ 
+      #only populate if selectors are set to hex grid and the response map has been populated
+      
+   output$downloadData <-      downloadHandler(
+        filename = "detail_table.csv",
+        content = function(file) {
+          write_csv(metric_data_detail(), file)
+        }
+      ) 
+      } else {
+ output$downloadData <-     downloadHandler(
+   filename = "null_table.csv",
+   content = function(file) {
+     out <- tibble(ouput = "You need to select data and load it before downloading!")
+     write_csv(out, file)
+   }
+ ) 
+      }
+  })
   
   #recalc legend to respond to new breaks
   
@@ -460,6 +529,7 @@ pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
       distinct(metric_color_label, metric_color_group) %>% 
       arrange(metric_color_label)
   })
+
 
 #event_recalc <- reactiveVal(update_recalc = NULL)
 
@@ -530,7 +600,7 @@ metric_data_detail <- reactive({
 
       if(is.null(click_county())) {
         NULL    # Not filtered
-      } else if(input$metric <=3 | input$asset < 13 ){  #if looking at basket of goods OR non-job assets, remove jobs
+      } else if(input$metric %in% c(1,2,5,6,7,8) | input$asset < 13 ){  #if looking at access strength or coverage OR non-job assets, remove jobs
        
         files$network_data_details %>%  #metric data is already set to a sepcific table--either basker of goods or details
           filter( Geoid==click_county()) %>% 
@@ -543,9 +613,9 @@ metric_data_detail <- reactive({
             ) %>% 
           select(c(Assettype,  `Metric`, `Value`)) %>% 
           pivot_wider(id_cols = Assettype, names_from = Metric, values_from = Value) %>% 
-          arrange(desc(`Percent Change In Asset Count`))%>% 
-      mutate(`Percent Change In Asset Count` = scales::percent(`Percent Change In Asset Count`, scale = 1)  ) %>% 
-          janitor::adorn_totals(na.rm = T , `...` = -c(`Percent Change In Asset Count`))
+          arrange(desc(`Percent Change In Possible Destinations`))%>% 
+      mutate(`Percent Change In Possible Destinations` = scales::percent(`Percent Change In Possible Destinations`, scale = 1)  ) %>% 
+          janitor::adorn_totals(na.rm = T , `...` = -c(`Percent Change In Possible Destinations`))
      }  else if (input$asset >= 13) { #filter to ONLY jobs data
        files$network_data_details %>%  #metric data is already set to a sepcific table--either basker of goods or details
          filter( Geoid==click_county()) %>% 
@@ -558,9 +628,9 @@ metric_data_detail <- reactive({
          filter((Assettype %in% c("High Wage Jobs", "Mid Wage Jobs", "Low Wage Jobs", "Total Jobs"))) %>% 
          select(c(Assettype,  `Metric`, `Value`)) %>% 
          pivot_wider(id_cols = Assettype, names_from = Metric, values_from = Value) %>% 
-         arrange(desc(`Percent Change In Asset Count`))%>% 
-         mutate(`Percent Change In Asset Count` = scales::percent(`Percent Change In Asset Count`, scale = 1)  ) %>% 
-         janitor::adorn_totals(na.rm = T, `...` = -c(`Percent Change In Asset Count`))
+         arrange(desc(`Percent Change In Possible Destinations`))%>% 
+         mutate(`Percent Change In Possible Destinations` = scales::percent(`Percent Change In Possible Destinations`, scale = 1)  ) %>% 
+         janitor::adorn_totals(na.rm = T, `...` = -c(`Percent Change In Possible Destinations`))
 }
 
 
@@ -592,6 +662,57 @@ observeEvent(input$summary_table, {
     )
   )
 })
+
+output$download_summary_table <- downloadHandler(
+  filename = "summary_table.csv",
+  content = function(file) {
+    
+    summary_table <- createWorkbook()
+    
+    addWorksheet(summary_table, sheetName = 'Access Strength')
+    addWorksheet(summary_table, sheetName = 'Trip Count')
+    addWorksheet(summary_table, sheetName = 'Frequency')
+    addWorksheet(summary_table, sheetName = 'Mean Frequency')
+    addWorksheet(summary_table, sheetName = "Time Period Definitions")
+    
+    ## Span Summary
+    # Add and Style Day Headers
+    writeData(summary_table, sheet = 'Start End', 'Weekdays', startCol = 3, startRow = 2)
+    writeData(summary_table, sheet = 'Start End', 'Saturdays', startCol = 5, startRow = 2)
+    writeData(summary_table, sheet = 'Start End', 'Sundays', startCol = 7, startRow = 2)
+    mergeCells(summary_table, sheet = 'Start End', cols = 3:4, rows = 2)
+    mergeCells(summary_table, sheet = 'Start End', cols = 5:6, rows = 2)
+    mergeCells(summary_table, sheet = 'Start End', cols = 7:8, rows = 2)
+    mergeCells(summary_table, sheet = 'Start End', cols = 2, rows = 2:3)
+    addStyle(summary_table, sheet = 'Start End', createStyle(halign = 'center', valign = 'center', textDecoration = 'bold', fgFill = '#D9E1F2', border = c('top', 'bottom', 'left', 'right'), borderStyle = 'medium'),
+             rows = 2:3, cols = 2:8, gridExpand = TRUE)
+    
+    # Populate table with data
+    writeData(summary_table, sheet = 'Start End', span_summary, startCol = 2, startRow = 3)
+    
+    # Rewrite Column Headers. Always double check column headers align with data frame
+    writeData(summary_table, sheet = 'Start End', matrix(rep(c('First Trip', 'Last Trip'), 3), nrow = 1), startCol = 3, startRow = 3, colNames = FALSE)
+    writeData(summary_table, sheet = 'Start End', 'Route', startCol = 2, startRow = 2)
+    
+    # Set Size
+    setColWidths(summary_table, sheet = 'Start End', cols = 2:8, widths = c(22, 12, 12, 12, 12, 12, 12))
+    addStyle(summary_table, sheet = 'Start End', createStyle(halign = 'center', valign = 'center'),
+             rows = 4:(nrow(span_summary) + 3), cols = 3:8, gridExpand = TRUE, stack = TRUE)
+    addStyle(summary_table, sheet = 'Start End', createStyle(border = c('left', 'right'), borderStyle = 'medium'),
+             rows = 4:(nrow(span_summary) + 3), cols = c(2, 3, 5, 7), gridExpand = TRUE, stack = TRUE)
+    addStyle(summary_table, sheet = 'Start End', createStyle(border = c('bottom'), borderStyle = 'medium'),
+             rows = nrow(span_summary) + 3, cols = 2:8, stack = TRUE)
+    addStyle(summary_table, sheet = 'Start End', createStyle(border = c('right'), borderStyle = 'medium'),
+             rows = 4:(nrow(span_summary) + 3), cols = 8, stack = TRUE)
+    addStyle(summary_table, sheet = 'Start End', createStyle(border = c('bottom'), borderStyle = 'medium'),
+             rows = which(str_detect(span_summary$route_label, 'Proposed')) + 3, cols = 2:8, gridExpand = TRUE, stack = TRUE)
+    
+    
+    
+    
+    write_csv(summary_table_reactive(), file)
+  }
+)
 
 metric_label_plot <- reactive({
   metric_choices[metric_choices ==input$metric] })
@@ -707,7 +828,7 @@ day_type_label <- reactive({
                            direction = "auto"),
                  fillColor = ~metric_data_sf()$metric_color_group,
                  popup = ~paste0(metric_label(), ": ", Value, " ", "<br>",
-                                 "Level of coverage change: ",`Change in Coverage Label`
+                                 "Level of access range change: ",`Change in Coverage Label`
                                  )
       ) %>%
       addPolylines(
@@ -1059,7 +1180,7 @@ day_type_label <- reactive({
   
    shinyalert(
      title = "King County Metro Transit Accessibility",
-     text = ("<b>Visit the FAQ page!</b> </br>This app compares the transit accessibility of various community assets using the Fall 2024 King County Metro network (baseline network) and the South Link Connections Phase 2 Network (proposed network)."),
+     text = ("<b>Visit the FAQ page!</b> </br>This app compares the transit accessibility of various community destinations using the Fall 2024 King County Metro network (baseline network) and the South Link Connections Phase 2 Network (proposal network)."),
        
      size = "s", 
      closeOnEsc = TRUE,
