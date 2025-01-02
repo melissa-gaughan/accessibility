@@ -448,16 +448,16 @@ pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
     } 
   },  ignoreNULL = FALSE)
 
- observeEvent(input$download_selection, {
-  # print(input$download_selection)
- #  print(input$recalc)
- #  req(input$recalc)
+ #observeEvent( input$metric_map_shape_click , {
+  observe({
+   geo_out <- input$metric_map_shape_click$id
+   print(paste0("geoid " ,geo_out))
     if(input$download_selection == "Metric" & !is.null(input$recalc)){
     
  output$downloadData <-    downloadHandler(
       
       filename = function() {
-      "transit_accessibility.zip"
+    paste0(  "transit_accessibility_" ,geo_out,".zip")
     },
     content = function(fname) {
    #   if(exists(tmpdir)){ rm(tmpdir)}
@@ -465,7 +465,7 @@ pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
       setwd(tempdir())
       directory <- file.path(tmpdir, "mygeometry")
       dir.create(directory)
-      path <- file.path(directory, "transit_accessibility.shp")
+      path <- file.path(directory, paste0("transit_accessibility.shp"))
       st_write(metric_data_sf(), path, append = F, overwrite=T)
       
       files <- file.path("mygeometry", list.files("mygeometry/"))
@@ -489,7 +489,7 @@ pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
           setwd(tempdir())
           directory <- file.path(tmpdir, "mygeometry")
           dir.create(directory)
-          path <- file.path(directory, "possible_destinations.shp")
+          path <- file.path(directory, paste0("possible_destinations", geo_out, ".shp"))
           st_write(range_sf(), path, append = F,  overwrite=T)
           
           files <- file.path("mygeometry", list.files("mygeometry/"))
@@ -505,9 +505,42 @@ pct_format <- scales::label_percent(accuracy = 0.1, scale = 1, big.mark = ",")
       #only populate if selectors are set to hex grid and the response map has been populated
       
    output$downloadData <-      downloadHandler(
-        filename = "detail_table.csv",
+        filename = paste0("detail_table_", geo_out, ".xlsx"),
         content = function(file) {
-          write_csv(metric_data_detail(), file)
+          
+          
+          summary_table <- openxlsx::createWorkbook()
+          openxlsx::addWorksheet(summary_table, sheetName = 'Destination Access Details')
+        
+       
+          ## 1.  Access Strength
+          # Add and Style Day Headers
+          
+          openxlsx::addStyle(summary_table, sheet = 'Destination Access Details',   
+                             openxlsx::createStyle(halign = 'center', valign = 'center', wrapText = T,
+                                                   textDecoration = 'bold', fgFill = '#D9E1F2',
+                                                   border = c('top', 'bottom', 'left', 'right'),
+                                                   borderStyle = 'medium'),
+                             rows = 2, cols = 2:6, gridExpand = TRUE)
+          
+          # Populate table with data
+          openxlsx::writeData(summary_table, sheet = 'Destination Access Details', metric_data_detail(), startCol = 2, startRow = 2)
+          
+          
+          # Set Size
+          openxlsx::setColWidths(summary_table, sheet = 'Destination Access Details', cols = 2:6, widths = c(22, 12, 12, 12, 12))
+          openxlsx::addStyle(summary_table, sheet = 'Destination Access Details', 
+                             openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                                   border = c('top', 'bottom', 'left', 'right'),
+                                                   borderStyle = 'medium'),
+                             rows = 3:(nrow(metric_data_detail()) + 2), cols = 3:6, gridExpand = TRUE, stack = TRUE)
+          openxlsx::addStyle(summary_table, sheet =  'Destination Access Details',  
+                             openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                                   border = c('top', 'bottom','left', 'right'),
+                                                   borderStyle = 'medium', textDecoration = 'bold'),
+                             rows = 2:(nrow(metric_data_detail() )+ 2), cols = c(2), gridExpand = TRUE, stack = TRUE)
+          
+          openxlsx::saveWorkbook(summary_table, file)
         }
       ) 
       } else {
@@ -664,53 +697,163 @@ observeEvent(input$summary_table, {
 })
 
 output$download_summary_table <- downloadHandler(
-  filename = "summary_table.csv",
+  filename = "study_area_summary.xlsx",
   content = function(file) {
     
-    summary_table <- createWorkbook()
+    summary_table <- openxlsx::createWorkbook()
+    openxlsx::addWorksheet(summary_table, sheetName = 'Read Me')
+    openxlsx::addWorksheet(summary_table, sheetName = 'Access Strength')
+    openxlsx::addWorksheet(summary_table, sheetName = 'Access Strength by Time of Day')
+    openxlsx::addWorksheet(summary_table, sheetName = 'Access Range')
+    openxlsx::addWorksheet(summary_table, sheetName = 'Worksite Access')
+    openxlsx::addWorksheet(summary_table, sheetName = "Worksite Access by Time Period")
     
-    addWorksheet(summary_table, sheetName = 'Access Strength')
-    addWorksheet(summary_table, sheetName = 'Trip Count')
-    addWorksheet(summary_table, sheetName = 'Frequency')
-    addWorksheet(summary_table, sheetName = 'Mean Frequency')
-    addWorksheet(summary_table, sheetName = "Time Period Definitions")
+    openxlsx::writeData(summary_table, sheet = 'Read Me', files$summary_table_read_me, startCol = 2, startRow = 2)
     
-    ## Span Summary
-    # Add and Style Day Headers
-    writeData(summary_table, sheet = 'Start End', 'Weekdays', startCol = 3, startRow = 2)
-    writeData(summary_table, sheet = 'Start End', 'Saturdays', startCol = 5, startRow = 2)
-    writeData(summary_table, sheet = 'Start End', 'Sundays', startCol = 7, startRow = 2)
-    mergeCells(summary_table, sheet = 'Start End', cols = 3:4, rows = 2)
-    mergeCells(summary_table, sheet = 'Start End', cols = 5:6, rows = 2)
-    mergeCells(summary_table, sheet = 'Start End', cols = 7:8, rows = 2)
-    mergeCells(summary_table, sheet = 'Start End', cols = 2, rows = 2:3)
-    addStyle(summary_table, sheet = 'Start End', createStyle(halign = 'center', valign = 'center', textDecoration = 'bold', fgFill = '#D9E1F2', border = c('top', 'bottom', 'left', 'right'), borderStyle = 'medium'),
-             rows = 2:3, cols = 2:8, gridExpand = TRUE)
+    ## 1.  Access Strength
+      # Add and Style Day Headers
+
+    openxlsx::addStyle(summary_table, sheet = 'Access Strength',   
+                       openxlsx::createStyle(halign = 'center', valign = 'center', wrapText = T,
+                                            textDecoration = 'bold', fgFill = '#D9E1F2',
+                                            border = c('top', 'bottom', 'left', 'right'),
+                                             borderStyle = 'medium'),
+             rows = 2, cols = 2:5, gridExpand = TRUE)
     
-    # Populate table with data
-    writeData(summary_table, sheet = 'Start End', span_summary, startCol = 2, startRow = 3)
+      # Populate table with data
+    openxlsx::writeData(summary_table, sheet = 'Access Strength', files$summary_table_bog, startCol = 2, startRow = 2)
     
-    # Rewrite Column Headers. Always double check column headers align with data frame
-    writeData(summary_table, sheet = 'Start End', matrix(rep(c('First Trip', 'Last Trip'), 3), nrow = 1), startCol = 3, startRow = 3, colNames = FALSE)
-    writeData(summary_table, sheet = 'Start End', 'Route', startCol = 2, startRow = 2)
     
     # Set Size
-    setColWidths(summary_table, sheet = 'Start End', cols = 2:8, widths = c(22, 12, 12, 12, 12, 12, 12))
-    addStyle(summary_table, sheet = 'Start End', createStyle(halign = 'center', valign = 'center'),
-             rows = 4:(nrow(span_summary) + 3), cols = 3:8, gridExpand = TRUE, stack = TRUE)
-    addStyle(summary_table, sheet = 'Start End', createStyle(border = c('left', 'right'), borderStyle = 'medium'),
-             rows = 4:(nrow(span_summary) + 3), cols = c(2, 3, 5, 7), gridExpand = TRUE, stack = TRUE)
-    addStyle(summary_table, sheet = 'Start End', createStyle(border = c('bottom'), borderStyle = 'medium'),
-             rows = nrow(span_summary) + 3, cols = 2:8, stack = TRUE)
-    addStyle(summary_table, sheet = 'Start End', createStyle(border = c('right'), borderStyle = 'medium'),
-             rows = 4:(nrow(span_summary) + 3), cols = 8, stack = TRUE)
-    addStyle(summary_table, sheet = 'Start End', createStyle(border = c('bottom'), borderStyle = 'medium'),
-             rows = which(str_detect(span_summary$route_label, 'Proposed')) + 3, cols = 2:8, gridExpand = TRUE, stack = TRUE)
-    
-    
-    
-    
-    write_csv(summary_table_reactive(), file)
+    openxlsx::setColWidths(summary_table, sheet = 'Access Strength', cols = 2:5, widths = c(22, 12, 12, 12))
+     openxlsx::addStyle(summary_table, sheet = 'Access Strength', 
+                        openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                              border = c('top', 'bottom', 'left', 'right'),
+                                               borderStyle = 'medium'),
+            rows = 3:(nrow(files$summary_table_bog) + 2), cols = 3:5, gridExpand = TRUE, stack = TRUE)
+   openxlsx::addStyle(summary_table, sheet = 'Access Strength',  
+                      openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                            border = c('top', 'bottom','left', 'right'),
+                                            borderStyle = 'medium', textDecoration = 'bold'),
+            rows = 2:(nrow(files$summary_table_bog) + 2), cols = c(2), gridExpand = TRUE, stack = TRUE)
+   
+   
+   
+   ## 2.  Access Strength By Time of Day
+   # Add and Style Day Headers
+   
+   openxlsx::addStyle(summary_table, sheet = 'Access Strength by Time of Day',   
+                      openxlsx::createStyle(halign = 'center', valign = 'center', wrapText = T,
+                                            textDecoration = 'bold', fgFill = '#D9E1F2',
+                                            border = c('top', 'bottom', 'left', 'right'),
+                                            borderStyle = 'medium'),
+                      rows = 2, cols = 2:6, gridExpand = TRUE)
+   
+   # Populate table with data
+   openxlsx::writeData(summary_table, sheet = 'Access Strength by Time of Day', files$summary_table_bog_time, startCol = 2, startRow = 2)
+   
+   
+   # Set Size
+   openxlsx::setColWidths(summary_table, sheet = 'Access Strength by Time of Day', cols = 2:6, widths = c(22, 12, 12, 12, 12))
+   openxlsx::addStyle(summary_table, sheet = 'Access Strength by Time of Day', 
+                      openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                            border = c('top', 'bottom', 'left', 'right'),
+                                            borderStyle = 'medium'),
+                      rows = 3:(nrow(files$summary_table_bog_time) + 2), cols = 3:6, gridExpand = TRUE, stack = TRUE)
+   openxlsx::addStyle(summary_table, sheet = 'Access Strength by Time of Day',  
+                      openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                            border = c('top', 'bottom','left', 'right'),
+                                            borderStyle = 'medium', textDecoration = 'bold'),
+                      rows = 2:(nrow(files$summary_table_bog_time) + 2), cols = c(2,3), gridExpand = TRUE, stack = TRUE)
+   
+  
+   ## 3.  Access Range
+   # Add and Style Day Headers
+   
+   openxlsx::addStyle(summary_table, sheet = 'Access Range',   
+                      openxlsx::createStyle(halign = 'center', valign = 'center', wrapText = T,
+                                            textDecoration = 'bold', fgFill = '#D9E1F2',
+                                            border = c('top', 'bottom', 'left', 'right'),
+                                            borderStyle = 'medium'),
+                      rows = 2, cols = 2:6, gridExpand = TRUE)
+   
+   # Populate table with data
+   openxlsx::writeData(summary_table, sheet = 'Access Range', files$summary_table_assets, startCol = 2, startRow = 2)
+   
+   
+   # Set Size
+   openxlsx::setColWidths(summary_table, sheet = 'Access Range', cols = 2:6, widths = c(22, 22, 12, 12, 12))
+   openxlsx::addStyle(summary_table, sheet = 'Access Range', 
+                      openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                            border = c('top', 'bottom', 'left', 'right'),
+                                            borderStyle = 'medium'),
+                      rows = 3:(nrow(files$summary_table_assets) + 2), cols = 3:6, gridExpand = TRUE, stack = TRUE)
+   openxlsx::addStyle(summary_table, sheet = 'Access Range',  
+                      openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                            border = c('top', 'bottom','left', 'right'),
+                                            borderStyle = 'medium', textDecoration = 'bold'),
+                      rows = 2:(nrow(files$summary_table_assets) + 2), cols = c(2,3), gridExpand = TRUE, stack = TRUE) 
+  
+   ## 4.  Worksite Access
+   # Add and Style Day Headers
+   
+   openxlsx::addStyle(summary_table, sheet = 'Worksite Access',   
+                      openxlsx::createStyle(halign = 'center', valign = 'center', wrapText = T,
+                                            textDecoration = 'bold', fgFill = '#D9E1F2',
+                                            border = c('top', 'bottom', 'left', 'right'),
+                                            borderStyle = 'medium'),
+                      rows = 2, cols = 2:6, gridExpand = TRUE)
+   
+   # Populate table with data
+   openxlsx::writeData(summary_table, sheet = 'Worksite Access', files$summary_table_jobs, startCol = 2, startRow = 2)
+   
+   
+   # Set Size
+   openxlsx::setColWidths(summary_table, sheet = 'Worksite Access', cols = 2:6, widths = c(22, 22, 12, 12, 12))
+   openxlsx::addStyle(summary_table, sheet = 'Worksite Access', 
+                      openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                            border = c('top', 'bottom', 'left', 'right'),
+                                            borderStyle = 'medium'),
+                      rows = 3:(nrow(files$summary_table_jobs) + 2), cols = 3:6, gridExpand = TRUE, stack = TRUE)
+   openxlsx::addStyle(summary_table, sheet = 'Worksite Access',  
+                      openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                            border = c('top', 'bottom','left', 'right'),
+                                            borderStyle = 'medium', textDecoration = 'bold'),
+                      rows = 2:(nrow(files$summary_table_jobs) + 2), cols = c(2,3), gridExpand = TRUE, stack = TRUE)  
+     
+   ## 5.  Worksite Access By Time Period
+   # Add and Style Day Headers
+   
+   openxlsx::addStyle(summary_table, sheet = 'Worksite Access by Time Period',   
+                      openxlsx::createStyle(halign = 'center', valign = 'center', wrapText = T,
+                                            textDecoration = 'bold', fgFill = '#D9E1F2',
+                                            border = c('top', 'bottom', 'left', 'right'),
+                                            borderStyle = 'medium'),
+                      rows = 2, cols = 2:6, gridExpand = TRUE)
+   
+   # Populate table with data
+   openxlsx::writeData(summary_table, sheet = 'Worksite Access by Time Period', files$summary_table_jobs_time, startCol = 2, startRow = 2)
+   
+   
+   # Set Size
+   openxlsx::setColWidths(summary_table, sheet = 'Worksite Access by Time Period', cols = 2:6, widths = c(22, 12, 12, 12, 12))
+   openxlsx::addStyle(summary_table, sheet = 'Worksite Access by Time Period', 
+                      openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                            border = c('top', 'bottom', 'left', 'right'),
+                                            borderStyle = 'medium'),
+                      rows = 3:(nrow(files$summary_table_jobs_time) + 2), cols = 3:6, gridExpand = TRUE, stack = TRUE)
+   
+   openxlsx::addStyle(summary_table, sheet = 'Worksite Access by Time Period',  
+                      openxlsx::createStyle(halign = 'center', valign = 'center', 
+                                            border = c('top', 'bottom','left', 'right'),
+                                            borderStyle = 'medium', textDecoration = 'bold'),
+                      rows = 2:(nrow(files$summary_table_jobs_time) + 2), cols = c(2,3), gridExpand = TRUE, stack = TRUE)  
+   
+   
+   
+   
+    openxlsx::saveWorkbook(summary_table, file)
+    # write_csv(summary_table_reactive(), file)
   }
 )
 
