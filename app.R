@@ -1323,7 +1323,7 @@ day_type_label <- reactive({
   
    shinyalert(
      title = "King County Metro Transit Accessibility",
-     text = ("<b>Visit the FAQ page!</b> </br>This app compares the transit accessibility of various community destinations using the Fall 2024 King County Metro network (baseline network) and the South Link Connections Phase 2 Network (proposal network)."),
+     text = ("<b>Visit the FAQ page!</b> </br>This app compares the transit accessibility of various community destinations using the Fall 2024 transit network as a baseline and the South Link Connections Phase 3 Network as a proposal network."),
        
      size = "s", 
      closeOnEsc = TRUE,

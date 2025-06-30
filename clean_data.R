@@ -1,12 +1,13 @@
 options(scipen=999)
 #library(shinydashboardPlus)
+#remotes::install_github("rpkgs/gg.layers")
 library(tidyverse)
 
 library(sf)
 library(gg.layers)
 #library(cartography)
 library(here)
-project_name <- "SLC_P2_periods_v1"
+project_name <- "SLC_P3_periods_v1"
 # LOAD IN DATA ####
 block_groups_raw <- sf::read_sf(here::here("raw_data", "2020_block_groups", "blkgrp20_shore.shp")) %>% 
   mutate(Geoid = as.numeric(GEO_ID_GRP))
@@ -64,13 +65,19 @@ parks <- read_sf(here::here("raw_data", "KCParkAccess.gdb"), layer = "KCParkAcce
 community_asset_groups <- read_csv(here::here("raw_data", "community_asset_groups.csv")) %>% 
   select(-type)
 # load and clean community assets. Join to hex dataframe
-community_assets <-sf::read_sf(here::here("raw_data", "CommunityAssets2023.gdb"), 
-                               layer = "CommunityAssets_January2023") %>%
-  st_transform(2926) %>% 
-  janitor::clean_names() %>% 
-  left_join(community_asset_groups) %>% 
-  bind_rows(parks)
-
+# community_assets <-sf::read_sf(here::here("raw_data", "CommunityAssets_2025.shp")) %>%
+#   st_transform(2926) %>% 
+#   janitor::clean_names() %>% 
+#   left_join(community_asset_groups, by = "assettype") %>% 
+#   bind_rows(parks)
+# 
+# check_join <- community_assets %>% 
+#   st_drop_geometry() %>% 
+#   group_by(assettype, asset_group) %>% 
+#   summarise(row_count = n())
+# 
+# View(check_join)
+#rm(list = c("parks", "check_join"))
 rm(parks)
 
 #route shapefiles ####
@@ -85,19 +92,44 @@ excluded_routes <- c('629', '634', '635', '636', '641', '643',
                      862', '863', '880', '881', '882', '9999', 
                      '627', '630', '893', '895', 
                      '981', '982', '986', '987', '988', '989')
-proposed_network <- sf::read_sf("raw_data/scenario/wk_allplanner_var_shape.shp") %>%
+proposed_network <- sf::read_sf("raw_data/scenario/planner_var_shape.shp") %>%
   rename(route_short_name = VAR_ROUTE,
          variant = VAR_IDENT,
          direction = VAR_DIREC,
          description = VAR_DESCR) %>%
+  mutate(line_length = st_length(geometry)) %>% 
+  mutate(line_length = as.numeric(line_length)) %>% 
+  filter(line_length > 0  | !(is.na(line_length))) %>% 
+  group_by(route_short_name) %>% 
+  slice_max(order_by = line_length, n= 1) %>% 
   distinct(route_short_name, .keep_all = T)  %>% 
+  mutate(agency = case_when(str_starts(route_short_name, "C") ~ "CT", 
+                            str_starts(route_short_name, "S") ~ "ST", 
+                            str_starts(route_short_name, "P" )~ "PT", 
+                            str_starts(route_short_name, "E" )~ "SDOT", 
+                            TRUE ~ "KCM"
+  )) %>% 
   filter(!route_short_name %in% excluded_routes ) %>% 
+  select(-line_length) %>% 
+  ungroup() %>% 
+  filter(agency %in% c("KCM", "SDOT", "ST")) %>%  #remove CT/PT routes, keep service Metro operates
   st_transform(2926) %>%
-  rmapshaper::ms_simplify(keep = .2) 
+  rmapshaper::ms_simplify(keep = .2) %>% 
+  st_buffer(dist = 1320)
+
+  
 
 #mapview::mapview(proposed_network)
 baseline_network <- sf::read_sf("raw_data/baseline/simplified_routes_243.shp") %>%
-  rename(route_short_name = RTE_NAME,
+  # rename(route_short_name = VAR_ROUTE,
+  #        variant = VAR_IDENT,
+  #        direction = VAR_DIREC,
+  #        description = VAR_DESCR) %>%
+  # distinct(route_short_name, .keep_all = T)  %>% 
+  # filter(!route_short_name %in% excluded_routes ) %>% 
+  # st_transform(2926) %>%
+  # rmapshaper::ms_simplify(keep = .2) 
+  rename(route_short_name = RTE_NAME, ## This variant of the code is used when referencing simplified routes
         # variant = VAR_IDENT, #not in simplified routes
          direction = DIR_CODE #, #IN OUT vs I/O may need to update code later?
          #description = VAR_DESCR
@@ -128,6 +160,7 @@ proposed_network <- proposed_network %>%
   st_transform(4326)
 
 parameters_raw <- read_csv(here::here("raw_data", paste0("input_parameters_SLC_P2_periods", ".csv"))) %>% 
+  #filter(day_type == "weekday") %>% 
   mutate(day_type  = stringr::str_replace_all(day_type, "_", " ")) %>% 
   mutate(day_type = stringr::str_to_title(day_type)) %>% 
   mutate(start_time = factor(start_time, levels = c("All Day", "AM", "MID", "PM", "EVE")) ) %>% 
@@ -178,11 +211,11 @@ parameters_df <- parameters_raw %>%
 #baseline_transit_matrix <- readr::read_csv(here::here("raw_data", "SLC_Baseline_travel_time_matrix_periods.csv")) not used at the moment
   
 
-proposed_transit_matrix <- readr::read_csv(here::here("raw_data", "SLC_Proposed_travel_time_matrix_periods.csv"))
+proposed_transit_matrix <- readr::read_csv(here::here("raw_data", "SLC_Proposed_P3_travel_time_matrix_periods.csv"))
 
 
 #  metrics #####
-network_data <-  read_csv(here::here( "raw_data",paste0("summary_comparison_", project_name, ".csv"))) %>% 
+network_data <-  read_csv(here::here( "raw_data",paste0("summary_comparison_",project_name, ".csv"))) %>% 
 rename(geoid = GEO_ID_GRP) %>% 
   mutate(across(starts_with("access_strength"), ~round(.x*100, 2)) )%>% #convert basket of goods score from 0-1 scale to 0-100
   select(-c(percentile, cutoff, run_id, cutoffs, departure_datetime_baseline, departure_datetime_proposal)) %>% 
@@ -243,8 +276,8 @@ network_data_details <- read_csv(here::here( "raw_data", paste0("asset_group_com
 
 
 unique(network_data_details$Metric)
-unique(network_data_details$assettype)
-unique(network_data_details$lookup_asset_group)
+unique(network_data_details$Assettype)
+unique(network_data_details$`Lookup Asset Group`)
 
 na_check <- network_data_details %>% 
   filter(is.na(`Lookup Asset Group`)) %>% 
@@ -337,8 +370,7 @@ summary_table_jobs_time <- read_csv(here::here( "raw_data", paste0("asset_group_
   janitor::clean_names("title")
 
   
-summary_table_read_me <- tibble(Notes = c("This app compares the transit accessibility of various community destinations using the Fall
-                                                                         2024 King County Metro network (baseline network) and the South Link Connections Phase 2 Network (proposal network). The results in this table
+summary_table_read_me <- tibble(Notes = c("This app compares the transit accessibility of various community destinations using the Phase 2 South Link Network Proposal as a baseline and the South Link Phase 3 Proposal Connections Network as the proposal network. The results in this table
                                                                          present the mean changes in the South Link Connections study area for a 45 minute transit trip."))
   
 #produce lookup table of Metrics last to merge two pivoted tables together
@@ -406,7 +438,7 @@ rm(project_name)
 rm(test)
 rm(na_check)
 
-rm(community_assets) # adding in community assets to RDS to try adding them to app
+#rm(community_assets) # adding in community assets to RDS to try adding them to app
 rm(community_asset_groups)
 rm(excluded_routes)
 rm(parks)
